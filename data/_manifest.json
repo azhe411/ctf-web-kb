@@ -1,0 +1,2212 @@
+{
+ "00-quickref": [
+  {
+   "gid": "recon",
+   "gname": "信息收集速查",
+   "entries": [
+    {
+     "id": "rec-checklist",
+     "title": "信息收集 10 分钟清单",
+     "lines": 33
+    },
+    {
+     "id": "rec-common-files",
+     "title": "敏感文件与备份文件速查",
+     "lines": 31
+    },
+    {
+     "id": "rec-dirbrute",
+     "title": "目录爆破速查命令",
+     "lines": 45
+    },
+    {
+     "id": "rec-jsrecon",
+     "title": "JS 分析与接口提取",
+     "lines": 52
+    }
+   ]
+  },
+  {
+   "gid": "probe",
+   "gname": "漏洞探测 Payload 速查",
+   "entries": [
+    {
+     "id": "probe-sqli",
+     "title": "SQL 注入快速探测",
+     "lines": 49
+    },
+    {
+     "id": "probe-xss",
+     "title": "XSS 快速探测",
+     "lines": 45
+    },
+    {
+     "id": "probe-ssti",
+     "title": "SSTI 模板注入快速探测",
+     "lines": 38
+    },
+    {
+     "id": "probe-lfi",
+     "title": "文件包含 / 任意文件读取探测",
+     "lines": 46
+    },
+    {
+     "id": "probe-ssrf",
+     "title": "SSRF 快速探测",
+     "lines": 50
+    },
+    {
+     "id": "probe-rce",
+     "title": "命令注入快速探测",
+     "lines": 59
+    },
+    {
+     "id": "probe-upload",
+     "title": "文件上传快速探测",
+     "lines": 31
+    },
+    {
+     "id": "probe-xxe",
+     "title": "XXE 快速探测",
+     "lines": 57
+    }
+   ]
+  },
+  {
+   "gid": "getshell",
+   "gname": "一句话 GetShell 速查",
+   "entries": [
+    {
+     "id": "shell-php",
+     "title": "PHP 一句话木马速查",
+     "lines": 39
+    },
+    {
+     "id": "shell-htaccess",
+     "title": ".htaccess / .user.ini 解析绕过",
+     "lines": 35
+    },
+    {
+     "id": "shell-img",
+     "title": "图片马制作",
+     "lines": 35
+    },
+    {
+     "id": "shell-loginclude",
+     "title": "日志包含 GetShell",
+     "lines": 47
+    }
+   ]
+  },
+  {
+   "gid": "reverseshell",
+   "gname": "反弹 Shell 速查",
+   "entries": [
+    {
+     "id": "rs-bash",
+     "title": "Bash / Sh 反弹",
+     "lines": 39
+    },
+    {
+     "id": "rs-nc",
+     "title": "Netcat / OpenBSD nc 反弹",
+     "lines": 31
+    },
+    {
+     "id": "rs-python",
+     "title": "Python 反弹",
+     "lines": 23
+    },
+    {
+     "id": "rs-php",
+     "title": "PHP 反弹",
+     "lines": 25
+    },
+    {
+     "id": "rs-perl",
+     "title": "Perl / Ruby 反弹",
+     "lines": 19
+    },
+    {
+     "id": "rs-socat",
+     "title": "Socat 反弹（含加密）",
+     "lines": 21
+    },
+    {
+     "id": "rs-msf",
+     "title": "MSF / msfvenom 反弹",
+     "lines": 31
+    },
+    {
+     "id": "rs-helper",
+     "title": "反弹 Shell 辅助技巧",
+     "lines": 35
+    }
+   ]
+  },
+  {
+   "gid": "encode",
+   "gname": "编码转换一行命令",
+   "entries": [
+    {
+     "id": "enc-base64",
+     "title": "Base64 编解码",
+     "lines": 18
+    },
+    {
+     "id": "enc-hex",
+     "title": "Hex / 二进制编解码",
+     "lines": 19
+    },
+    {
+     "id": "enc-url",
+     "title": "URL 编解码",
+     "lines": 15
+    },
+    {
+     "id": "enc-rot",
+     "title": "ROT / 凯撒编解码",
+     "lines": 20
+    },
+    {
+     "id": "enc-other",
+     "title": "其他编码与特征速查",
+     "lines": 49
+    }
+   ]
+  }
+ ],
+ "01-basics": [
+  {
+   "gid": "http",
+   "gname": "HTTP 协议基础",
+   "entries": [
+    {
+     "id": "http-methods",
+     "title": "HTTP 方法与常用场景",
+     "lines": 25
+    },
+    {
+     "id": "http-status",
+     "title": "HTTP 状态码速查",
+     "lines": 38
+    },
+    {
+     "id": "http-headers",
+     "title": "HTTP 请求/响应头速查",
+     "lines": 40
+    },
+    {
+     "id": "http-sec-headers",
+     "title": "安全响应头与 CSP",
+     "lines": 33
+    }
+   ]
+  },
+  {
+   "gid": "smuggling",
+   "gname": "请求走私与协议攻击",
+   "entries": [
+    {
+     "id": "smug-basics",
+     "title": "请求走私原理速查",
+     "lines": 38
+    },
+    {
+     "id": "smug-clte",
+     "title": "CL.TE / TE.CL / TE.TE 走私",
+     "lines": 75
+    },
+    {
+     "id": "h2-smuggling",
+     "title": "HTTP/2 降级与走私变体",
+     "lines": 27
+    }
+   ]
+  },
+  {
+   "gid": "encoding",
+   "gname": "编码与解析差异",
+   "entries": [
+    {
+     "id": "encoding-tricks",
+     "title": "URL 编码与解析差异绕过",
+     "lines": 37
+    },
+    {
+     "id": "charset-issues",
+     "title": "字符集与编码陷阱",
+     "lines": 34
+    }
+   ]
+  },
+  {
+   "gid": "cookie",
+   "gname": "Cookie 与 Session",
+   "entries": [
+    {
+     "id": "cookie-attrs",
+     "title": "Cookie 属性速查",
+     "lines": 27
+    },
+    {
+     "id": "cookie-forgery",
+     "title": "Cookie / Session 伪造与篡改",
+     "lines": 33
+    }
+   ]
+  },
+  {
+   "gid": "traffic",
+   "gname": "抓包与代理",
+   "entries": [
+    {
+     "id": "capture-basics",
+     "title": "抓包代理设置（Burp / mitmproxy）",
+     "lines": 42
+    }
+   ]
+  }
+ ],
+ "02-tools": [
+  {
+   "gid": "g-scan",
+   "gname": "扫描与指纹识别",
+   "entries": [
+    {
+     "id": "nmap-basic",
+     "title": "Nmap 参数全集",
+     "lines": 37
+    },
+    {
+     "id": "port-services",
+     "title": "常见端口与服务对照",
+     "lines": 32
+    },
+    {
+     "id": "fingerprint",
+     "title": "Web 指纹识别三件套",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g-dir",
+   "gname": "目录与资源枚举",
+   "entries": [
+    {
+     "id": "dir-search",
+     "title": "目录扫描三件套模板",
+     "lines": 23
+    },
+    {
+     "id": "wordlist-keys",
+     "title": "字典要点与词表分类",
+     "lines": 17
+    },
+    {
+     "id": "backup-files",
+     "title": "常见备份与敏感文件清单",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g-proxy",
+   "gname": "代理与流量",
+   "entries": [
+    {
+     "id": "burp-workflow",
+     "title": "Burp Suite 模块用途与流程",
+     "lines": 24
+    },
+    {
+     "id": "mitmproxy",
+     "title": "mitmproxy 命令速查",
+     "lines": 20
+    },
+    {
+     "id": "tcpdump",
+     "title": "tcpdump 抓包速查",
+     "lines": 19
+    }
+   ]
+  },
+  {
+   "gid": "g-brute",
+   "gname": "爆破与口令",
+   "entries": [
+    {
+     "id": "hydra",
+     "title": "Hydra 在线爆破模板",
+     "lines": 32
+    },
+    {
+     "id": "hashcat",
+     "title": "Hashcat 模式与字典路径",
+     "lines": 38
+    },
+    {
+     "id": "burp-intruder",
+     "title": "Intruder 四种攻击模式",
+     "lines": 18
+    }
+   ]
+  },
+  {
+   "gid": "g-exp",
+   "gname": "漏洞利用框架",
+   "entries": [
+    {
+     "id": "sqlmap",
+     "title": "SQLMap 参数速查",
+     "lines": 46
+    },
+    {
+     "id": "metasploit",
+     "title": "Metasploit 流程与 msfvenom",
+     "lines": 41
+    },
+    {
+     "id": "beef",
+     "title": "BeEF 浏览器利用框架",
+     "lines": 15
+    }
+   ]
+  },
+  {
+   "gid": "g-fore",
+   "gname": "取证与解码",
+   "entries": [
+    {
+     "id": "cyberchef",
+     "title": "CyberChef 常用配方",
+     "lines": 23
+    },
+    {
+     "id": "strings-binwalk",
+     "title": "文件取证与隐写工具",
+     "lines": 22
+    },
+    {
+     "id": "wireshark",
+     "title": "Wireshark 与 tshark 过滤语法",
+     "lines": 31
+    }
+   ]
+  },
+  {
+   "gid": "g-res",
+   "gname": "在线与资源",
+   "entries": [
+    {
+     "id": "online-decode",
+     "title": "在线解码与转换工具",
+     "lines": 13
+    },
+    {
+     "id": "decompile-tools",
+     "title": "反编译与逆向工具清单",
+     "lines": 15
+    },
+    {
+     "id": "ctf-platforms",
+     "title": "CTF 平台与资源站",
+     "lines": 17
+    }
+   ]
+  }
+ ],
+ "03-xss": [
+  {
+   "gid": "g-basic",
+   "gname": "XSS 基础与类型",
+   "entries": [
+    {
+     "id": "basic-types",
+     "title": "反射/存储/DOM 三类型对比",
+     "lines": 18
+    },
+    {
+     "id": "basic-detect-payloads",
+     "title": "检测 payload 全集",
+     "lines": 24
+    },
+    {
+     "id": "basic-contexts",
+     "title": "闭合场景速查",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g-reflected",
+   "gname": "反射型 XSS 挖掘",
+   "entries": [
+    {
+     "id": "ref-context-close",
+     "title": "上下文确认与闭合构造",
+     "lines": 22
+    },
+    {
+     "id": "ref-attr-javascript-url",
+     "title": "属性注入与 javascript: URL",
+     "lines": 17
+    },
+    {
+     "id": "ref-payload-templates",
+     "title": "常用 payload 模板库",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-stored",
+   "gname": "存储型 XSS",
+   "entries": [
+    {
+     "id": "stored-storage-points",
+     "title": "存储点枚举",
+     "lines": 21
+    },
+    {
+     "id": "stored-cookie-steal",
+     "title": "窃取 cookie 完整利用链",
+     "lines": 27
+    },
+    {
+     "id": "stored-hit-admin",
+     "title": "打管理员思路",
+     "lines": 29
+    }
+   ]
+  },
+  {
+   "gid": "g-dom",
+   "gname": "DOM XSS",
+   "entries": [
+    {
+     "id": "dom-source-sink",
+     "title": "source/sink 对照表",
+     "lines": 32
+    },
+    {
+     "id": "dom-framework-pits",
+     "title": "框架渲染坑（vue/react）",
+     "lines": 27
+    }
+   ]
+  },
+  {
+   "gid": "g-bypass",
+   "gname": "绕过技巧",
+   "entries": [
+    {
+     "id": "bypass-encoding",
+     "title": "编码绕过",
+     "lines": 22
+    },
+    {
+     "id": "bypass-events",
+     "title": "事件属性大全表",
+     "lines": 31
+    },
+    {
+     "id": "bypass-blacklist-len",
+     "title": "黑名单绕过与长度截断",
+     "lines": 31
+    }
+   ]
+  },
+  {
+   "gid": "g-csrf",
+   "gname": "CSRF",
+   "entries": [
+    {
+     "id": "csrf-principle",
+     "title": "原理与前提",
+     "lines": 18
+    },
+    {
+     "id": "csrf-payload-templates",
+     "title": "GET/POST 表单模板",
+     "lines": 27
+    },
+    {
+     "id": "csrf-token-bypass-samesite",
+     "title": "token 绕过与 SameSite 简述",
+     "lines": 35
+    }
+   ]
+  },
+  {
+   "gid": "g-cors",
+   "gname": "CORS 与点击劫持",
+   "entries": [
+    {
+     "id": "cors-aca-reflect",
+     "title": "ACAO 反射与利用链",
+     "lines": 38
+    },
+    {
+     "id": "cors-clickjacking",
+     "title": "点击劫持 iframe 覆盖",
+     "lines": 27
+    }
+   ]
+  },
+  {
+   "gid": "g-redirect",
+   "gname": "开放重定向与跳转",
+   "entries": [
+    {
+     "id": "redirect-param-find",
+     "title": "跳转参数挖掘",
+     "lines": 13
+    },
+    {
+     "id": "redirect-pseudo-protocol",
+     "title": "伪协议与 javascript: 变体",
+     "lines": 22
+    },
+    {
+     "id": "redirect-harm-upgrade",
+     "title": "危害升级与组合利用",
+     "lines": 27
+    }
+   ]
+  }
+ ],
+ "04-crypto": [
+  {
+   "gid": "g-enc",
+   "gname": "编码识别与解码",
+   "entries": [
+    {
+     "id": "enc-charset",
+     "title": "常见编码特征对照表",
+     "lines": 25
+    },
+    {
+     "id": "enc-identify",
+     "title": "识别顺序与通用套路",
+     "lines": 17
+    },
+    {
+     "id": "enc-special",
+     "title": "摩斯/Brainfuck/JSFuck/二维码",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-classic",
+   "gname": "古典密码",
+   "entries": [
+    {
+     "id": "classic-caesar",
+     "title": "凯撒与维吉尼亚",
+     "lines": 31
+    },
+    {
+     "id": "classic-trans",
+     "title": "栅栏与培根",
+     "lines": 16
+    },
+    {
+     "id": "classic-affine",
+     "title": "仿射与猪圈、Playfair",
+     "lines": 28
+    }
+   ]
+  },
+  {
+   "gid": "g-modern",
+   "gname": "现代密码基础",
+   "entries": [
+    {
+     "id": "modern-mode",
+     "title": "分组模式 ECB/CBC 与重排/翻转",
+     "lines": 22
+    },
+    {
+     "id": "modern-padding",
+     "title": "PKCS7 填充与填充预言机",
+     "lines": 19
+    },
+    {
+     "id": "modern-xor",
+     "title": "单字节 XOR 与多字节密钥 XOR",
+     "lines": 24
+    }
+   ]
+  },
+  {
+   "gid": "g-rsa",
+   "gname": "RSA 专项",
+   "entries": [
+    {
+     "id": "rsa-params",
+     "title": "openssl 提取 n/e 与基础脚本",
+     "lines": 32
+    },
+    {
+     "id": "rsa-weak",
+     "title": "低指数/共模/公约数",
+     "lines": 49
+    },
+    {
+     "id": "rsa-wiener",
+     "title": "小私钥 d 与 Wiener 攻击",
+     "lines": 42
+    }
+   ]
+  },
+  {
+   "gid": "g-hash",
+   "gname": "哈希与消息认证",
+   "entries": [
+    {
+     "id": "hash-table",
+     "title": "MD5/SHA 输出长度速查",
+     "lines": 20
+    },
+    {
+     "id": "hash-0e",
+     "title": "0e 科学计数碰撞与弱比较",
+     "lines": 26
+    },
+    {
+     "id": "hash-len",
+     "title": "长度扩展攻击",
+     "lines": 24
+    }
+   ]
+  },
+  {
+   "gid": "g-flow",
+   "gname": "实战解题流程",
+   "entries": [
+    {
+     "id": "flow-decision",
+     "title": "解题决策树",
+     "lines": 32
+    },
+    {
+     "id": "flow-pitfall",
+     "title": "常见坑与踩坑点",
+     "lines": 20
+    }
+   ]
+  }
+ ],
+ "05-sqli": [
+  {
+   "gid": "g-basic",
+   "gname": "原理与分类",
+   "entries": [
+    {
+     "id": "basic-what",
+     "title": "SQL 注入原理",
+     "lines": 26
+    },
+    {
+     "id": "basic-comment",
+     "title": "注释符与语句截断",
+     "lines": 19
+    },
+    {
+     "id": "basic-position",
+     "title": "注入位置与数据流",
+     "lines": 18
+    }
+   ]
+  },
+  {
+   "gid": "g-union",
+   "gname": "联合注入",
+   "entries": [
+    {
+     "id": "union-orderby",
+     "title": "order by 探测列数",
+     "lines": 17
+    },
+    {
+     "id": "union-select",
+     "title": "union select 找回显位",
+     "lines": 23
+    },
+    {
+     "id": "union-infoschema",
+     "title": "information_schema 查库表列",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-error",
+   "gname": "报错注入",
+   "entries": [
+    {
+     "id": "error-updatexml",
+     "title": "updatexml 报错注入",
+     "lines": 16
+    },
+    {
+     "id": "error-extractvalue",
+     "title": "extractvalue 报错注入",
+     "lines": 16
+    },
+    {
+     "id": "error-floor",
+     "title": "floor 报错注入",
+     "lines": 17
+    }
+   ]
+  },
+  {
+   "gid": "g-blind-bool",
+   "gname": "布尔盲注",
+   "entries": [
+    {
+     "id": "blind-bool-basic",
+     "title": "布尔盲注判断模板",
+     "lines": 25
+    },
+    {
+     "id": "blind-bool-script",
+     "title": "Python 二分脚本模板",
+     "lines": 33
+    }
+   ]
+  },
+  {
+   "gid": "g-blind-time",
+   "gname": "时间盲注",
+   "entries": [
+    {
+     "id": "blind-time-sleep",
+     "title": "sleep 时间盲注",
+     "lines": 22
+    },
+    {
+     "id": "blind-time-db",
+     "title": "各数据库时间函数对照",
+     "lines": 17
+    }
+   ]
+  },
+  {
+   "gid": "g-stack",
+   "gname": "堆叠注入",
+   "entries": [
+    {
+     "id": "stack-basic",
+     "title": "堆叠注入原理与限制",
+     "lines": 21
+    },
+    {
+     "id": "stack-example",
+     "title": "堆叠注入实战示例",
+     "lines": 23
+    }
+   ]
+  },
+  {
+   "gid": "g-bypass",
+   "gname": "过滤绕过",
+   "entries": [
+    {
+     "id": "bypass-space",
+     "title": "空格与注释符绕过",
+     "lines": 26
+    },
+    {
+     "id": "bypass-case",
+     "title": "大小写、双写与编码绕过",
+     "lines": 27
+    },
+    {
+     "id": "bypass-quote",
+     "title": "引号、逗号、等号绕过与宽字节",
+     "lines": 38
+    }
+   ]
+  },
+  {
+   "gid": "g-db",
+   "gname": "数据库差异对照",
+   "entries": [
+    {
+     "id": "db-comment-concat",
+     "title": "注释符与字符串连接对照",
+     "lines": 21
+    },
+    {
+     "id": "db-version-meta",
+     "title": "版本函数与元数据表对照",
+     "lines": 26
+    },
+    {
+     "id": "db-time-err",
+     "title": "时间与报错函数对照",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-file",
+   "gname": "写文件与深入",
+   "entries": [
+    {
+     "id": "file-outfile",
+     "title": "into outfile 写文件",
+     "lines": 21
+    },
+    {
+     "id": "file-log",
+     "title": "general_log 日志写马",
+     "lines": 20
+    },
+    {
+     "id": "file-sqlmap",
+     "title": "sqlmap 实战流程",
+     "lines": 40
+    }
+   ]
+  }
+ ],
+ "06-injection": [
+  {
+   "gid": "g1",
+   "gname": "命令注入",
+   "entries": [
+    {
+     "id": "cmdi-basic",
+     "title": "命令注入检测与分隔符全集",
+     "lines": 19
+    },
+    {
+     "id": "cmdi-close",
+     "title": "引号闭合与执行点确认",
+     "lines": 15
+    },
+    {
+     "id": "cmdi-blind",
+     "title": "无回显盲判与外带写文件",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g2",
+   "gname": "命令注入绕过",
+   "entries": [
+    {
+     "id": "cmdi-bypass-space",
+     "title": "空格与命令名替换绕过",
+     "lines": 16
+    },
+    {
+     "id": "cmdi-bypass-char",
+     "title": "base64 解码与编码构造绕过",
+     "lines": 14
+    },
+    {
+     "id": "cmdi-readflag",
+     "title": "读 flag 路径与命令顺序",
+     "lines": 17
+    }
+   ]
+  },
+  {
+   "gid": "g3",
+   "gname": "SSTI - Jinja2",
+   "entries": [
+    {
+     "id": "ssti-detect",
+     "title": "SSTI 检测与引擎区分",
+     "lines": 13
+    },
+    {
+     "id": "ssti-escape",
+     "title": "class 逃逸链与 Popen 定位",
+     "lines": 15
+    },
+    {
+     "id": "ssti-rce",
+     "title": "短链 RCE 模板与盲注判定",
+     "lines": 12
+    }
+   ]
+  },
+  {
+   "gid": "g4",
+   "gname": "SSTI - 其他引擎",
+   "entries": [
+    {
+     "id": "ssti-twig-smarty",
+     "title": "Twig 与 Smarty 速查",
+     "lines": 15
+    },
+    {
+     "id": "ssti-java-other",
+     "title": "FreeMarker/Velocity/ERB/Nunjucks",
+     "lines": 18
+    }
+   ]
+  },
+  {
+   "gid": "g5",
+   "gname": "XXE",
+   "entries": [
+    {
+     "id": "xxe-read",
+     "title": "XXE 读文件与 php filter",
+     "lines": 22
+    },
+    {
+     "id": "xxe-blind",
+     "title": "盲 XXE 外带完整模板",
+     "lines": 15
+    },
+    {
+     "id": "xxe-adv",
+     "title": "XInclude 与解析器差异",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g6",
+   "gname": "NoSQL 与 LDAP/XPATH",
+   "entries": [
+    {
+     "id": "nosql-auth",
+     "title": "MongoDB $ne 认证绕过",
+     "lines": 16
+    },
+    {
+     "id": "nosql-ldap-xpath",
+     "title": "NoSQL 运算符与 LDAP/XPath",
+     "lines": 21
+    }
+   ]
+  }
+ ],
+ "07-logic": [
+  {
+   "gid": "g-horizontal",
+   "gname": "水平越权",
+   "entries": [
+    {
+     "id": "h-idor-principle",
+     "title": "水平越权原理与前提",
+     "lines": 17
+    },
+    {
+     "id": "h-idor-detect",
+     "title": "IDOR 检测流程",
+     "lines": 18
+    },
+    {
+     "id": "h-idor-bruteforce",
+     "title": "批量遍历脚本思路",
+     "lines": 31
+    }
+   ]
+  },
+  {
+   "gid": "g-vertical",
+   "gname": "垂直越权",
+   "entries": [
+    {
+     "id": "v-role-model",
+     "title": "角色判断与权限模型",
+     "lines": 18
+    },
+    {
+     "id": "v-admin-api",
+     "title": "普通用户调 admin 接口",
+     "lines": 28
+    },
+    {
+     "id": "v-frontend-bypass",
+     "title": "前端鉴权绕过",
+     "lines": 13
+    }
+   ]
+  },
+  {
+   "gid": "g-authflow",
+   "gname": "注册登录逻辑",
+   "entries": [
+    {
+     "id": "a-register-overwrite",
+     "title": "注册覆盖与批量注册",
+     "lines": 21
+    },
+    {
+     "id": "a-verify-bypass",
+     "title": "邮箱/手机验证绕过",
+     "lines": 21
+    },
+    {
+     "id": "a-login-reset",
+     "title": "登录限制与密码重置链",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-payment",
+   "gname": "支付与订单",
+   "entries": [
+    {
+     "id": "p-amount-tamper",
+     "title": "金额与数量篡改",
+     "lines": 24
+    },
+    {
+     "id": "p-coupon-points",
+     "title": "优惠券复用与积分刷取",
+     "lines": 15
+    },
+    {
+     "id": "p-zero-cost",
+     "title": "并发 0 元购思路",
+     "lines": 28
+    }
+   ]
+  },
+  {
+   "gid": "g-captcha",
+   "gname": "验证码与频率",
+   "entries": [
+    {
+     "id": "c-sms-bomb",
+     "title": "短信轰炸",
+     "lines": 23
+    },
+    {
+     "id": "c-sms-crack",
+     "title": "验证码爆破",
+     "lines": 22
+    },
+    {
+     "id": "c-image-captcha",
+     "title": "图形验证码绕过",
+     "lines": 16
+    }
+   ]
+  },
+  {
+   "gid": "g-race",
+   "gname": "状态机与竞态",
+   "entries": [
+    {
+     "id": "r-state-machine",
+     "title": "订单状态跳变与越步操作",
+     "lines": 20
+    },
+    {
+     "id": "r-duplicate",
+     "title": "重复提交",
+     "lines": 21
+    },
+    {
+     "id": "r-concurrency",
+     "title": "并发竞态与时间窗利用",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-method",
+   "gname": "越权检测方法论",
+   "entries": [
+    {
+     "id": "m-compare",
+     "title": "接口对比法",
+     "lines": 16
+    },
+    {
+     "id": "m-param-swap",
+     "title": "参数替换法",
+     "lines": 16
+    },
+    {
+     "id": "m-role-matrix",
+     "title": "角色矩阵与 Token 替换清单",
+     "lines": 23
+    }
+   ]
+  }
+ ],
+ "08-server": [
+  {
+   "gid": "g-upload",
+   "gname": "文件上传",
+   "entries": [
+    {
+     "id": "upload-blacklist",
+     "title": "黑名单绕过：畸形后缀与解析漏洞配合",
+     "lines": 35
+    },
+    {
+     "id": "upload-content",
+     "title": "内容检测绕过：图片马与合并",
+     "lines": 36
+    },
+    {
+     "id": "upload-config",
+     "title": "配置型 Getshell：.htaccess 与 .user.ini",
+     "lines": 29
+    }
+   ]
+  },
+  {
+   "gid": "g-lfi",
+   "gname": "文件包含",
+   "entries": [
+    {
+     "id": "lfi-filter",
+     "title": "php://filter 读源码",
+     "lines": 20
+    },
+    {
+     "id": "lfi-input",
+     "title": "php://input 与 data:// 直接执行",
+     "lines": 19
+    },
+    {
+     "id": "lfi-rfi",
+     "title": "日志包含、Session 包含与远程包含",
+     "lines": 32
+    }
+   ]
+  },
+  {
+   "gid": "g-ssrf",
+   "gname": "SSRF",
+   "entries": [
+    {
+     "id": "ssrf-detect",
+     "title": "SSRF 探测与回连验证",
+     "lines": 19
+    },
+    {
+     "id": "ssrf-protocol",
+     "title": "协议利用与云元数据",
+     "lines": 41
+    },
+    {
+     "id": "ssrf-redis",
+     "title": "gopher 打 Redis 写 Webshell",
+     "lines": 43
+    }
+   ]
+  },
+  {
+   "gid": "g-deser-php",
+   "gname": "PHP 反序列化",
+   "entries": [
+    {
+     "id": "deser-php-serialize",
+     "title": "serialize 格式与魔术方法",
+     "lines": 28
+    },
+    {
+     "id": "deser-php-pop",
+     "title": "POP 链构造思路",
+     "lines": 22
+    },
+    {
+     "id": "deser-php-phar",
+     "title": "phar 反序列化与 phpggc",
+     "lines": 42
+    }
+   ]
+  },
+  {
+   "gid": "g-deser-java",
+   "gname": "Java 反序列化",
+   "entries": [
+    {
+     "id": "deser-java-ysoserial",
+     "title": "ysoserial 生成与链速查",
+     "lines": 27
+    },
+    {
+     "id": "deser-java-fastjson",
+     "title": "Fastjson autoType 利用",
+     "lines": 34
+    },
+    {
+     "id": "deser-java-shiro",
+     "title": "Shiro rememberMe 硬编码密钥",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g-deser-py",
+   "gname": "Python/Node 反序列化",
+   "entries": [
+    {
+     "id": "deser-py-pickle",
+     "title": "pickle __reduce__ RCE",
+     "lines": 29
+    },
+    {
+     "id": "deser-py-yaml-node",
+     "title": "yaml.load 与 node-serialize",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g-traversal",
+   "gname": "目录遍历",
+   "entries": [
+    {
+     "id": "traversal-variants",
+     "title": "../ 变体全集",
+     "lines": 23
+    },
+    {
+     "id": "traversal-download",
+     "title": "下载型 filename 参数挖掘",
+     "lines": 15
+    },
+    {
+     "id": "traversal-targets",
+     "title": "读取目标清单",
+     "lines": 25
+    }
+   ]
+  }
+ ],
+ "09-auth": [
+  {
+   "gid": "g1",
+   "gname": "JWT",
+   "entries": [
+    {
+     "id": "jwt-attacks",
+     "title": "JWT 攻击全集",
+     "lines": 33
+    },
+    {
+     "id": "jwt-alg-none",
+     "title": "alg=none 与密钥混淆",
+     "lines": 24
+    },
+    {
+     "id": "jwt-weak-key",
+     "title": "弱密钥爆破与 kid/jku 注入",
+     "lines": 25
+    }
+   ]
+  },
+  {
+   "gid": "g2",
+   "gname": "登录绕过",
+   "entries": [
+    {
+     "id": "login-bypass",
+     "title": "登录绕过速查",
+     "lines": 26
+    },
+    {
+     "id": "weak-passwords",
+     "title": "弱口令与默认口令",
+     "lines": 30
+    }
+   ]
+  },
+  {
+   "gid": "g3",
+   "gname": "会话安全",
+   "entries": [
+    {
+     "id": "session-fixation",
+     "title": "会话固定与可预测 SID",
+     "lines": 20
+    },
+    {
+     "id": "cookie-tamper",
+     "title": "Cookie 篡改与会话反序列化",
+     "lines": 24
+    }
+   ]
+  },
+  {
+   "gid": "g4",
+   "gname": "验证码",
+   "entries": [
+    {
+     "id": "captcha-ocr",
+     "title": "验证码识别与复用",
+     "lines": 20
+    },
+    {
+     "id": "captcha-frontend",
+     "title": "前端验证码绕过",
+     "lines": 19
+    },
+    {
+     "id": "sms-bruteforce",
+     "title": "短信/邮箱验证码爆破",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g5",
+   "gname": "密码重置",
+   "entries": [
+    {
+     "id": "reset-arbitrary",
+     "title": "任意用户重置",
+     "lines": 23
+    },
+    {
+     "id": "reset-token",
+     "title": "重置 token 爆破与泄露",
+     "lines": 20
+    },
+    {
+     "id": "reset-hostheader",
+     "title": "Host 头注入与接口越权",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g6",
+   "gname": "OAuth2 与 SSO",
+   "entries": [
+    {
+     "id": "oauth-redirect",
+     "title": "OAuth redirect_uri 篡改",
+     "lines": 22
+    },
+    {
+     "id": "oauth-state",
+     "title": "state 缺失与会话固定",
+     "lines": 22
+    },
+    {
+     "id": "sso-saml",
+     "title": "SAML 断言伪造",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g7",
+   "gname": "双因素绕过",
+   "entries": [
+    {
+     "id": "2fa-bypass",
+     "title": "双因素绕过",
+     "lines": 20
+    },
+    {
+     "id": "otp-logic",
+     "title": "OTP 校验逻辑缺陷",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g8",
+   "gname": "认证逻辑总纲",
+   "entries": [
+    {
+     "id": "auth-checklist",
+     "title": "认证功能点 Checklist",
+     "lines": 21
+    },
+    {
+     "id": "shiro",
+     "title": "Shiro 特性速查",
+     "lines": 25
+    }
+   ]
+  }
+ ],
+ "10-linux": [
+  {
+   "gid": "g-files",
+   "gname": "文件与目录",
+   "entries": [
+    {
+     "id": "ls-find-view",
+     "title": "文件列举、查找与查看",
+     "lines": 43
+    },
+    {
+     "id": "file-perm",
+     "title": "文件权限：chmod/chown/umask",
+     "lines": 33
+    },
+    {
+     "id": "hard-soft-link",
+     "title": "软链接与硬链接 ln",
+     "lines": 12
+    }
+   ]
+  },
+  {
+   "gid": "g-findgrep",
+   "gname": "查找与过滤",
+   "entries": [
+    {
+     "id": "find-flag",
+     "title": "全盘搜索 flag",
+     "lines": 12
+    },
+    {
+     "id": "grep-secrets",
+     "title": "grep 搜敏感信息",
+     "lines": 13
+    },
+    {
+     "id": "log-config-search",
+     "title": "日志与配置定位",
+     "lines": 14
+    }
+   ]
+  },
+  {
+   "gid": "g-net",
+   "gname": "网络与监听",
+   "entries": [
+    {
+     "id": "port-listen",
+     "title": "端口与监听查看",
+     "lines": 15
+    },
+    {
+     "id": "curl-wget",
+     "title": "curl 与 wget 常用参数",
+     "lines": 28
+    },
+    {
+     "id": "nc-ssh",
+     "title": "nc 与 ssh：反弹、监听、转发",
+     "lines": 31
+    }
+   ]
+  },
+  {
+   "gid": "g-proc",
+   "gname": "进程与系统",
+   "entries": [
+    {
+     "id": "ps-top",
+     "title": "进程查看与控制",
+     "lines": 16
+    },
+    {
+     "id": "sysctl-service",
+     "title": "systemctl 服务管理",
+     "lines": 17
+    },
+    {
+     "id": "env-cron",
+     "title": "环境变量与定时任务",
+     "lines": 23
+    }
+   ]
+  },
+  {
+   "gid": "g-text",
+   "gname": "文本处理",
+   "entries": [
+    {
+     "id": "awk-sed",
+     "title": "awk 与 sed 流处理",
+     "lines": 18
+    },
+    {
+     "id": "sort-uniq-cut",
+     "title": "去重统计与列裁剪",
+     "lines": 18
+    },
+    {
+     "id": "flag-extract",
+     "title": "提取 flag 的典型组合命令",
+     "lines": 27
+    }
+   ]
+  },
+  {
+   "gid": "g-users",
+   "gname": "用户与权限",
+   "entries": [
+    {
+     "id": "user-su-sudo",
+     "title": "用户管理与提权入口",
+     "lines": 22
+    },
+    {
+     "id": "passwd-uid",
+     "title": "/etc/passwd、uid 0 与可写文件",
+     "lines": 25
+    }
+   ]
+  },
+  {
+   "gid": "g-priv",
+   "gname": "提权辅助速查",
+   "entries": [
+    {
+     "id": "suid-scan",
+     "title": "SUID/SGID 与自动化枚举",
+     "lines": 25
+    },
+    {
+     "id": "sudo-gtfo",
+     "title": "sudo -l 与 GTFO 速查",
+     "lines": 30
+    },
+    {
+     "id": "path-cron-abuse",
+     "title": "PATH 劫持与 cron 可写利用",
+     "lines": 34
+    }
+   ]
+  },
+  {
+   "gid": "g-env",
+   "gname": "环境与部署",
+   "entries": [
+    {
+     "id": "lang-rce",
+     "title": "PHP/Python/Node 一键命令",
+     "lines": 23
+    },
+    {
+     "id": "tar-zip",
+     "title": "打包解压与加密",
+     "lines": 30
+    },
+    {
+     "id": "db-clients",
+     "title": "数据库客户端常用操作",
+     "lines": 33
+    }
+   ]
+  }
+ ],
+ "11-lang": [
+  {
+   "gid": "g-php-weak",
+   "gname": "PHP 弱类型",
+   "entries": [
+    {
+     "id": "php-loose-compare",
+     "title": "PHP 弱类型比较绕过",
+     "lines": 21
+    },
+    {
+     "id": "php-magic-hash",
+     "title": "0e 科学计数 Magic Hash",
+     "lines": 22
+    },
+    {
+     "id": "php-juggling-bypass",
+     "title": "数组绕过与 intval/is_numeric/switch",
+     "lines": 23
+    }
+   ]
+  },
+  {
+   "gid": "g-php-feat",
+   "gname": "PHP 特性",
+   "entries": [
+    {
+     "id": "php-variable-overwrite",
+     "title": "变量覆盖：extract/parse_str/$$",
+     "lines": 15
+    },
+    {
+     "id": "php-pseudo-protocols",
+     "title": "伪协议速查表",
+     "lines": 16
+    },
+    {
+     "id": "php-rce-functions",
+     "title": "命令执行与代码执行函数表",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g-python",
+   "gname": "Python",
+   "entries": [
+    {
+     "id": "py-flask-debug-pin",
+     "title": "Flask 调试 PIN 与 Werkzeug 控制台",
+     "lines": 20
+    },
+    {
+     "id": "py-flask-session-forge",
+     "title": "Flask Session 伪造（弱 secret）",
+     "lines": 21
+    },
+    {
+     "id": "py-pickle-yaml-rce",
+     "title": "pickle/YAML 反序列化 RCE 与 send_file 穿越",
+     "lines": 29
+    }
+   ]
+  },
+  {
+   "gid": "g-node",
+   "gname": "Node.js",
+   "entries": [
+    {
+     "id": "node-prototype-pollution",
+     "title": "原型污染",
+     "lines": 18
+    },
+    {
+     "id": "node-express-param",
+     "title": "Express 参数解析差异",
+     "lines": 18
+    },
+    {
+     "id": "node-traversal-ejs-vm",
+     "title": "路径规范化绕过、ejs RCE 与 vm 逃逸",
+     "lines": 30
+    }
+   ]
+  },
+  {
+   "gid": "g-java",
+   "gname": "Java",
+   "entries": [
+    {
+     "id": "java-spel-ognl",
+     "title": "SpEL、OGNL 与 EL 表达式注入",
+     "lines": 22
+    },
+    {
+     "id": "java-fastjson-log4j",
+     "title": "Fastjson autoType 与 Log4j2 JNDI",
+     "lines": 22
+    },
+    {
+     "id": "java-tomcat-others",
+     "title": "Tomcat Manager 弱口令与内存马",
+     "lines": 19
+    }
+   ]
+  },
+  {
+   "gid": "g-misc",
+   "gname": "其他语言与解析",
+   "entries": [
+    {
+     "id": "go-net-http-path",
+     "title": "Go net/http 路径清理特性",
+     "lines": 16
+    },
+    {
+     "id": "lang-command-file-cheatsheet",
+     "title": "各语言命令执行与文件读取速查表",
+     "lines": 38
+    },
+    {
+     "id": "regex-redos-blacklist",
+     "title": "ReDoS 与黑名单绕过",
+     "lines": 24
+    }
+   ]
+  }
+ ],
+ "12-middleware": [
+  {
+   "gid": "g-nginx",
+   "gname": "Nginx",
+   "entries": [
+    {
+     "id": "nginx-location",
+     "title": "location 匹配优先级",
+     "lines": 23
+    },
+    {
+     "id": "nginx-alias-traversal",
+     "title": "alias 与 try_files 目录穿越",
+     "lines": 23
+    },
+    {
+     "id": "nginx-cve-2013-4547",
+     "title": "CVE-2013-4547 空格与空字节绕过",
+     "lines": 14
+    }
+   ]
+  },
+  {
+   "gid": "g-apache",
+   "gname": "Apache",
+   "entries": [
+    {
+     "id": "apache-multi-ext",
+     "title": "多后缀解析 shell.php.jpg",
+     "lines": 16
+    },
+    {
+     "id": "apache-htaccess-cgi",
+     "title": ".htaccess 利用与 mod_cgi",
+     "lines": 34
+    },
+    {
+     "id": "apache-cve-2021-41773",
+     "title": "CVE-2021-41773 / CVE-2021-42013 路径穿越",
+     "lines": 26
+    }
+   ]
+  },
+  {
+   "gid": "g-iis",
+   "gname": "IIS",
+   "entries": [
+    {
+     "id": "iis-shortname",
+     "title": "8.3 短文件名猜解",
+     "lines": 15
+    },
+    {
+     "id": "iis-semicolon",
+     "title": "分号截断解析",
+     "lines": 15
+    },
+    {
+     "id": "iis-webconfig-put",
+     "title": "web.config 配置执行与 PUT 写入",
+     "lines": 37
+    }
+   ]
+  },
+  {
+   "gid": "g-tomcat",
+   "gname": "Tomcat",
+   "entries": [
+    {
+     "id": "tomcat-manager",
+     "title": "Manager 弱口令部署 WAR",
+     "lines": 28
+    },
+    {
+     "id": "tomcat-put-jsp",
+     "title": "CVE-2017-12615 PUT 写 JSP",
+     "lines": 24
+    },
+    {
+     "id": "tomcat-ajp-ghostcat",
+     "title": "CVE-2020-1938 Ghostcat AJP 文件读取",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g-redis",
+   "gname": "Redis",
+   "entries": [
+    {
+     "id": "redis-unauth",
+     "title": "未授权访问",
+     "lines": 12
+    },
+    {
+     "id": "redis-write-file",
+     "title": "CONFIG SET 写 Webshell / SSH key / crontab",
+     "lines": 35
+    },
+    {
+     "id": "redis-master-slave",
+     "title": "主从复制加载 .so RCE",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g-db",
+   "gname": "MySQL 与数据库",
+   "entries": [
+    {
+     "id": "mysql-weak-outfile",
+     "title": "root 弱口令与 INTO OUTFILE 写马",
+     "lines": 28
+    },
+    {
+     "id": "mysql-general-log",
+     "title": "general_log 日志写马",
+     "lines": 18
+    },
+    {
+     "id": "phpmyadmin",
+     "title": "phpMyAdmin 弱口令与利用",
+     "lines": 16
+    }
+   ]
+  },
+  {
+   "gid": "g-cloud",
+   "gname": "云与容器",
+   "entries": [
+    {
+     "id": "cloud-metadata",
+     "title": "云元数据服务利用",
+     "lines": 27
+    },
+    {
+     "id": "cloud-oss-bucket",
+     "title": "对象存储桶未授权",
+     "lines": 19
+    },
+    {
+     "id": "container-escape-k8s",
+     "title": "容器逃逸思路与 K8s 简述",
+     "lines": 42
+    }
+   ]
+  },
+  {
+   "gid": "g-cve",
+   "gname": "常见 CVE 速查表",
+   "entries": [
+    {
+     "id": "cve-struts-weblogic",
+     "title": "Struts2 与 WebLogic 速查",
+     "lines": 20
+    },
+    {
+     "id": "cve-fastjson-log4j",
+     "title": "Fastjson 与 Log4j2 速查",
+     "lines": 17
+    },
+    {
+     "id": "cve-shiro-spring",
+     "title": "Shiro 默认密钥与 Spring4Shell 速查",
+     "lines": 18
+    }
+   ]
+  }
+ ],
+ "13-recon": [
+  {
+   "gid": "g-passive",
+   "gname": "被动收集",
+   "entries": [
+    {
+     "id": "passive-google-dork",
+     "title": "Google Dork 语法速查",
+     "lines": 28
+    },
+    {
+     "id": "passive-github",
+     "title": "GitHub 搜索与令牌泄露",
+     "lines": 19
+    },
+    {
+     "id": "passive-icp-crt",
+     "title": "备案查询与证书透明度",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g-sub",
+   "gname": "子域名与 DNS",
+   "entries": [
+    {
+     "id": "sub-enum-tools",
+     "title": "subfinder 与 amass 枚举",
+     "lines": 15
+    },
+    {
+     "id": "sub-bruteforce",
+     "title": "子域爆破与泛解析识别",
+     "lines": 20
+    },
+    {
+     "id": "sub-dnslog",
+     "title": "dnslog 平台与带外验证",
+     "lines": 16
+    }
+   ]
+  },
+  {
+   "gid": "g-port",
+   "gname": "端口与服务",
+   "entries": [
+    {
+     "id": "port-nmap",
+     "title": "nmap 参数速查",
+     "lines": 30
+    },
+    {
+     "id": "recon-porttable",
+     "title": "常见端口与默认服务对照",
+     "lines": 20
+    },
+    {
+     "id": "port-banner",
+     "title": "Banner 抓取与协议识别",
+     "lines": 16
+    }
+   ]
+  },
+  {
+   "gid": "g-dir",
+   "gname": "目录与源码泄露",
+   "entries": [
+    {
+     "id": "dir-scan",
+     "title": "目录扫描与工具对比",
+     "lines": 18
+    },
+    {
+     "id": "dir-backup",
+     "title": "备份文件与版本控制泄露",
+     "lines": 26
+    },
+    {
+     "id": "dir-robots",
+     "title": "robots.txt 与 sitemap 解析",
+     "lines": 18
+    }
+   ]
+  },
+  {
+   "gid": "g-finger",
+   "gname": "Web 指纹与组件",
+   "entries": [
+    {
+     "id": "finger-identify",
+     "title": "框架与 CMS 指纹识别",
+     "lines": 19
+    },
+    {
+     "id": "finger-cve",
+     "title": "指纹到 CVE 的检索链路",
+     "lines": 21
+    },
+    {
+     "id": "finger-default",
+     "title": "框架默认路径与常见面板",
+     "lines": 24
+    }
+   ]
+  },
+  {
+   "gid": "g-js",
+   "gname": "JS 与接口提取",
+   "entries": [
+    {
+     "id": "js-extract",
+     "title": "页面 JS 抓取与分析",
+     "lines": 22
+    },
+    {
+     "id": "js-burp-api",
+     "title": "Burp 被动抓包与接口清单",
+     "lines": 18
+    },
+    {
+     "id": "js-sourcemap",
+     "title": "Source Map 还原与 JSFinder",
+     "lines": 20
+    }
+   ]
+  },
+  {
+   "gid": "g-flow",
+   "gname": "资产整理与攻击面",
+   "entries": [
+    {
+     "id": "flow-checklist",
+     "title": "信息收集 10 分钟清单",
+     "lines": 11
+    },
+    {
+     "id": "recon-flow",
+     "title": "攻击面决策树",
+     "lines": 19
+    }
+   ]
+  }
+ ],
+ "14-exploit": [
+  {
+   "gid": "g1",
+   "gname": "Webshell 与免杀",
+   "entries": [
+    {
+     "id": "webshell-collect",
+     "title": "一句话马合集",
+     "lines": 21
+    },
+    {
+     "id": "webshell-bypass",
+     "title": "免杀思路汇总",
+     "lines": 15
+    },
+    {
+     "id": "webshell-tools",
+     "title": "蚁剑/冰蝎/哥斯拉连接",
+     "lines": 16
+    }
+   ]
+  },
+  {
+   "gid": "g2",
+   "gname": "反弹 Shell 大全",
+   "entries": [
+    {
+     "id": "reverse-bash",
+     "title": "Bash 与 NC 反弹 Shell",
+     "lines": 21
+    },
+    {
+     "id": "reverse-poly",
+     "title": "Python/PHP/Perl/Ruby/Socat 反弹",
+     "lines": 27
+    },
+    {
+     "id": "reverse-msfvenom",
+     "title": "msfvenom 生成与 TTY 升级",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g3",
+   "gname": "端口转发与隧道",
+   "entries": [
+    {
+     "id": "tunnel-ssh",
+     "title": "SSH 端口转发三件套",
+     "lines": 16
+    },
+    {
+     "id": "tunnel-chisel",
+     "title": "Chisel/FrP/Nps 内网隧道",
+     "lines": 32
+    },
+    {
+     "id": "tunnel-socat",
+     "title": "Socat/ReGeorg/DNS 隧道",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g4",
+   "gname": "Linux 提权",
+   "entries": [
+    {
+     "id": "linux-sudo",
+     "title": "sudo -l 与 GTFO Bins 提权",
+     "lines": 20
+    },
+    {
+     "id": "linux-suid-path",
+     "title": "SUID / PATH 劫持 / Cron 提权",
+     "lines": 17
+    },
+    {
+     "id": "linux-kernel",
+     "title": "内核提权与 Linpeas 决策流程",
+     "lines": 22
+    }
+   ]
+  },
+  {
+   "gid": "g5",
+   "gname": "Windows 提权",
+   "entries": [
+    {
+     "id": "win-info",
+     "title": "Windows 信息收集与常见提权",
+     "lines": 19
+    },
+    {
+     "id": "win-services",
+     "title": "可写服务与 Unquoted Path 提权",
+     "lines": 22
+    },
+    {
+     "id": "win-tools",
+     "title": "winpeas 与全套提权工具",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g6",
+   "gname": "内网渗透思路",
+   "entries": [
+    {
+     "id": "intranet-flow",
+     "title": "内网渗透完整流程",
+     "lines": 15
+    },
+    {
+     "id": "intranet-horizontal",
+     "title": "横向移动与拿 Flag 收尾",
+     "lines": 18
+    }
+   ]
+  },
+  {
+   "gid": "g7",
+   "gname": "WAF 绕过总纲",
+   "entries": [
+    {
+     "id": "waf-basics",
+     "title": "WAF 绕过通用思路",
+     "lines": 25
+    },
+    {
+     "id": "waf-sql",
+     "title": "SQL 注入 WAF 绕过对照表",
+     "lines": 24
+    },
+    {
+     "id": "waf-xss-cmd",
+     "title": "XSS 与命令注入 WAF 绕过",
+     "lines": 21
+    }
+   ]
+  },
+  {
+   "gid": "g8",
+   "gname": "流量分析 pcap",
+   "entries": [
+    {
+     "id": "pcap-wireshark",
+     "title": "Wireshark 过滤语法速查",
+     "lines": 20
+    },
+    {
+     "id": "pcap-ctf",
+     "title": "CTF 流量分析题型思路",
+     "lines": 16
+    },
+    {
+     "id": "pcap-extract",
+     "title": "文件提取与隐写分析",
+     "lines": 16
+    }
+   ]
+  }
+ ]
+}

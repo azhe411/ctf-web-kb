@@ -1,0 +1,507 @@
+{
+  "id": "recon",
+  "name": "信息收集与侦察",
+  "icon": "🔍",
+  "groups": [
+    {
+      "id": "g-passive",
+      "name": "被动收集",
+      "intro": "不接触目标，从公开渠道把资产底细摸清",
+      "entries": [
+        {
+          "id": "passive-google-dork",
+          "title": "Google Dork 语法速查",
+          "tags": [
+            "被动收集",
+            "搜索引擎"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "用搜索引擎索引直接定位暴露的敏感文件、后台入口与泄露信息，全程零流量接触目标。",
+          "content": "\n#### 常用操作符\n\n```txt\nsite:example.com        限定域名\nintitle:\"admin\"         标题包含\ninurl:phpmyadmin        URL 包含\nintext:\"password\"       页面正文包含\nfiletype:sql            指定文件类型\ninurl:.git/config       定位 git 泄露\n```\n\n#### 组合示例\n\n```txt\nsite:example.com filetype:env\nsite:example.com inurl:admin login\nsite:example.com intitle:\"index of\"       目录列表\nsite:example.com filetype:bak|sql|zip\nsite:example.com intext:\"api_key\"\n-inurl:php -inurl:html site:example.com  排除噪音\n```\n\n> [!tip]\n> 顺手测目标是否被别家爬虫与泄露库索引：`site:pastebin.com 域名`、`site:github.com 域名`。\n\n> [!warn]\n> Dork 结果受搜索引擎反爬与地理位置影响，同一 dork 换 Google/Bing/本地站内搜索各跑一遍再下结论。"
+        },
+        {
+          "id": "passive-github",
+          "title": "GitHub 搜索与令牌泄露",
+          "tags": [
+            "被动收集",
+            "代码搜索"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "在公开代码、提交历史与 Gist 中捞组织名、域名、邮箱对应的硬编码密钥与内部路径。",
+          "content": "\n#### 检索语法\n\n```txt\n\"example.com\" password\n\"example.com\" api_key\n\"example.com\" \"BEGIN RSA PRIVATE KEY\"\nfilename:.env example\norg:目标组织名 token\n```\n\n```bash\n# 配合 gh CLI 走 API 搜索（需 token，用量受限）\ngh search code \"example.com secret\" --limit 50\n```\n\n> [!tip]\n> 提交历史里删掉的密钥不会消失：直接看 `commits` 页与 blame，或克隆仓库后 `git log -p --all` 全量翻。\n> 泄露的云密钥（AK/SK、GitHub token）需立即评估权限、通知目标方轮换，切勿自行调用验证。"
+        },
+        {
+          "id": "passive-icp-crt",
+          "title": "备案查询与证书透明度",
+          "tags": [
+            "被动收集",
+            "证书"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "通过 ICP 备案与 crt.sh 证书日志，把子域名、历史域名和旁站一次性摊开。",
+          "content": "\n#### 备案查询\n\n- 工信部备案系统（beian.miit.gov.cn）：按域名倒查备案主体\n- 站长工具类站点：按主体查名下全部域名，常能挖出未公开的站群\n- 备案主体一致 = 资产归属同一公司，可并入同一测试范围\n\n#### 证书透明度\n\n```bash\n# crt.sh 域名查询（无需 curl 也行，直接浏览器打开 https://crt.sh/?q=example.com）\ncurl -s \"https://crt.sh/?q=%25.example.com&output=json\" | jq -r '.[].name_value' | sort -u\n```\n\n```bash\n# certspotter 更稳，限速更友好\ncurl -s \"https://api.certspotter.com/v1/issuances?domain=example.com&include_subdomains=true&expand=dns_names\" | jq -r '.[].dns_names[]' | sort -u\n```\n\n> [!warn]\n> certspotter 免费 API 有速率限制，批量跑记得加 `sleep`；crt.sh 结果含大量垃圾子域，需手工去噪。"
+        }
+      ]
+    },
+    {
+      "id": "g-sub",
+      "name": "子域名与 DNS",
+      "intro": "把边界画出来，才知道从哪下手",
+      "entries": [
+        {
+          "id": "sub-enum-tools",
+          "title": "subfinder 与 amass 枚举",
+          "tags": [
+            "子域名",
+            "DNS"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "聚合证书日志、被动 DNS、搜索索引等多个数据源，快速得出目标子域名全集。",
+          "content": "\n```bash\n# subfinder：被动为主，快且稳\nsubfinder -d example.com -all -o subs.txt\n\n# amass：社区版做被动枚举 + 简单爆破\namass enum -passive -d example.com -o amass.txt\n\n# 合并去重\ncat subs.txt amass.txt | sort -u > all-subs.txt\n```\n\n> [!tip]\n> subfinder 会在首次运行时提示配置各平台 API key；不配置也能用内置公共源，配置后命中率翻倍。\n> 枚举结果先解析 IP 再按 CDN 与否分类，CDN 后的子域通常不是直接突破口。"
+        },
+        {
+          "id": "sub-bruteforce",
+          "title": "子域爆破与泛解析识别",
+          "tags": [
+            "子域名",
+            "DNS"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "对被动枚举不到的深层/冷门子域，用字典主动爆破，并先排除泛解析噪音。",
+          "content": "\n```bash\n# dnsx：从字典读取并验证存活子域\ndnsx -d example.com -w subdomains.txt -o live.txt\n\n# massdns：大规模爆破，速度极快，需 root 且注意限速\nmassdns -r resolvers.txt -t A -o S -w mass.txt subdomains.txt\n```\n\n#### 泛解析识别\n\n```bash\n# 随机不存在的名字，若解析出 A 记录则存在泛解析\ndig random-string-abc123.example.com +short\n# 命中泛解析后，需过滤：只保留与泛解析 IP 不同的结果才算真实子域\ndnsx -d example.com -w subs.txt --filter-resp -resp-only | awk '{print $1}' | sort -u\n```\n\n> [!warn]\n> 泛解析会让爆破结果全是\"活\"的假子域，务必先做泛解析探测再下结论；dnslog 类随机子域同理。"
+        },
+        {
+          "id": "sub-dnslog",
+          "title": "dnslog 平台与带外验证",
+          "tags": [
+            "DNS",
+            "带外"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "在无回显场景下，用 DNS 请求回传验证注入、SSRF、命令执行等漏洞是否命中。",
+          "content": "\n| 平台 | 地址 | 用途 |\n| --- | --- | --- |\n| dnslog.cn | https://dnslog.cn | 申请子域，看 DNS/HTTP 回传 |\n| ceye.io | https://ceye.io | 域名+标识，支持 HTTP 探针 |\n| interactsh | https://app.interactsh.com | 开源，本机自建更可控 |\n\n```bash\n# 拿到平台子域后，payload 里拼上唯一标识即可区分来源\nwhoami.example.ceye.io\ncurl http://xxx.xxx.xxx.xxx/flag.ceye.io\n```\n\n> [!tip]\n> 自建 interactsh 时把回传域名拼进自己的域名，可避免第三方平台 IP 被目标流量日志标记。\n> 带外请求务必加随机标识（时间戳/随机串），方便在日志里定位是哪一次请求触发。"
+        }
+      ]
+    },
+    {
+      "id": "g-port",
+      "name": "端口与服务",
+      "intro": "目标开放了什么，决定你能走哪条路",
+      "entries": [
+        {
+          "id": "port-nmap",
+          "title": "nmap 参数速查",
+          "tags": [
+            "端口",
+            "扫描"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "一次扫描覆盖开放端口、服务版本与常见漏洞指纹，是打点前的标准动作。",
+          "content": "\n```bash\n# 常规存活探测 + 常用端口\nnmap -sV -sC -T4 目标IP\n\n# 全端口快速扫描（速度快，适合大范围）\nnmap -p- -T4 目标IP\n\n# 全端口 + 版本 + 脚本 + 系统指纹，最全但慢\nnmap -p- -sV -sC -O -T4 目标IP\n\n# 输出三种格式便于后续处理\nnmap -p- -sV -oA scan 目标IP\n\n# 指定端口精确扫描\nnmap -sV -p 22,80,443,8080,8443 目标IP\n```\n\n| 参数 | 含义 |\n| --- | --- |\n| -sV | 服务版本探测 |\n| -sC | 默认 NSE 脚本 |\n| -O | 操作系统指纹 |\n| -p- | 全端口 1-65535 |\n| -A | -sV -sC -O 的组合 |\n| -T4 | 激进时间模板（内网常用 T4/T5，公网慎用） |\n| --top-ports 1000 | 只扫最常见端口 |\n\n> [!warn]\n> 公网目标全端口 + 高 T 值会触发 IDS/封禁；先 `-sn` 探活，再分层扫，避免一次扫爆。"
+        },
+        {
+          "id": "recon-porttable",
+          "title": "常见端口与默认服务对照",
+          "tags": [
+            "端口",
+            "服务识别"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "看到端口号先对表猜服务，再决定用哪种方式进一步探测。",
+          "content": "\n#### 这个条目的作用\nnmap 扫完会给你一串端口号，但数字本身不告诉你后面跑着什么服务。这张对照表把「端口 → 常见服务 → 默认试探方式」串起来：看到 3306 你该想 MySQL，看到 6379 你该想 Redis 未授权。端口是攻击面的目录，这张表就是目录的索引。\n\n#### 前置条件\n- 已用 nmap 拿到目标端口列表（如 `nmap -sV -T4 目标IP`）\n- 知道 TCP/UDP 端口号的含义：1-1023 是系统常用端口，1024 以上多为用户程序自选\n\n#### 第 1 步：拿到端口列表后，先对照常用端口表做第一轮分类\n操作：把扫描结果里的每个端口，对照上表（21 FTP、22 SSH、23 Telnet、25/465/587 SMTP、80/443 Web、3306 MySQL、3389 RDP、5432 PostgreSQL、6379 Redis、8080/8443 Tomcat、8888 宝塔、9200 ES、27017 MongoDB、11211 Memcached）写下「端口 + 猜的服务 + 优先级」三列。\n预期结果：一份待探测清单，比如 `6379 → Redis → 优先试未授权`。\n如果不行：端口不在表里，说明是自定义/非常规服务，交给第 2 步。\n\n#### 第 2 步：对非常规端口，用 nmap 版本探测确认真实服务\n操作：对可疑端口单独跑版本探测：\n```bash\nnmap -sV -p 7001,8000,8081,9090 目标IP\n```\n预期结果：nmap 报出 `open` 且给出服务名与版本，如 `Oracle WebLogic Server`。\n如果不行：nmap 只报 `open` 不给版本，说明服务不回标准 banner，转到 port-banner 条目手工发包。\n\n#### 第 3 步：按服务类型选择默认试探动作\n操作：对照表里「默认凭据/路径」列逐项试：\n```bash\n# MySQL root 空口令 / 弱口令\nmysql -h 目标IP -u root -p\n# Redis 未授权访问\nredis-cli -h 目标IP ping\n# MongoDB 未授权\nmongosh \"mongodb://目标IP:27017\"\n# Tomcat 管理后台\ncurl -s http://目标IP:8080/manager/html\n```\n预期结果：至少一类服务能连通——能连上就说明存在默认凭据或未授权，直接进入打点阶段。\n如果不行：全部拒绝，说明有认证或访问控制，把端口记入「后续爆破/漏洞」清单。\n\n#### 第 4 步：把结果整理成服务清单\n操作：按「开放端口 → 服务与版本 → 可用的默认入口 → 下一步动作」整理成清单，作为整个渗透过程的路线图。\n预期结果：一份随时能查的清单，例如：`8080/Tomcat 8.5 → /manager 存在 → 爆破 admin 口令`。\n如果不行：发现某端口不开放了，复查 nmap 输出是否被防火墙干扰（见排查表）。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| nmap 显示 filtered | 防火墙屏蔽了该端口探测 | 换 `-sS` 半开扫描或换源 IP 再试 |\n| 端口开着但服务识别为 unknown | 服务不回标准 banner | 用 port-banner 手工发包，或按端口+协议猜测后验证 |\n| 对表猜错服务 | 端口被自定义服务占用 | 永远以 nmap -sV / banner 结果为准，表格只是第一猜测 |\n| 全端口扫描太慢 | 用了 `-p-` 且无加速 | 先 `--top-ports 1000`，命中后再对高危端口 `-p-` 补扫 |\n\n#### 实战要点\n- 80/443 之外的高位端口（8000/8081/9090/7001）往往是框架管理口，优先级最高，别按端口号大小排序跳过。\n- 同一端口可能绑多个虚拟主机，扫描后记得对每个 HTTP 端口做 host 头/域名枚举。\n- 对照表不是终点：Redis 未授权、ES 未授权这类「连上即洞」的服务，看到端口就要第一时间测。\n- 把服务版本精确到小版本号（如 8.5.61 而非 8.5），版本号是后面 finger-cve 检索的输入。"
+        },
+        {
+          "id": "port-banner",
+          "title": "Banner 抓取与协议识别",
+          "tags": [
+            "端口",
+            "banner"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "nmap 版本探测不可靠时，手工发包读 banner，确认真实服务与版本。",
+          "content": "\n#### 这个条目的作用\n很多服务在客户端连上来的一瞬间会主动「自报家门」：FTP 会说 `220 ProFTPD 1.3.5e`，SSH 会说 `SSH-2.0-OpenSSH_7.4`。这段开场白叫 banner。当 nmap 的版本探测失灵（报 unknown、报错版本、被防火墙干扰）时，手工发包读 banner 是最直接的确认方式，拿到精确版本号才能去对 CVE。\n\n#### 前置条件\n- 已确认目标端口是 open 状态（先用 `nmap -sV 目标IP` 或上一轮扫描）\n- 本机装有 netcat（Windows 可用 `ncat`，Kali 自带 `nc`）\n\n#### 第 1 步：直接连端口，看它是否主动报 banner\n操作：用 nc 连接并退出，观察返回的欢迎信息：\n```bash\nnc -vz 目标IP 80\nnc 目标IP 22\n```\n预期结果：连接 22 端口返回 `SSH-2.0-OpenSSH_7.4`，连接 80 返回 HTTP 应答头——版本号一目了然。\n如果不行：连接后立即断开没有输出，说明该服务不主动发 banner，进入第 2 步主动询问。\n\n#### 第 2 步：发一个 HTTP 请求，读响应头里的服务标识\n操作：对 HTTP 服务用 curl 只取响应头：\n```bash\ncurl -sI http://目标IP:8080/\n```\n预期结果：响应头里出现 `Server: nginx/1.18.0`、`X-Powered-By: PHP/7.4.3` 等指纹行。\n如果不行：服务不回标准 HTTP 头，或端口是纯 TCP 协议，进入第 3 步手工发包。\n\n#### 第 3 步：手动构造协议报文，主动「问」服务\n操作：用 printf 构造裸协议请求喂给 nc（HTTP 和 Redis 最常用）：\n```bash\n# HTTP：发一个 GET 请求，服务必须回应\nprintf \"GET / HTTP/1.0\\r\\n\\r\\n\" | nc 目标IP 80\n# Redis：空连接测试未授权\nprintf \"\\r\\n\" | nc 目标IP 6379\n# FTP：发 NOOP 或 USER 触发响应\nprintf \"USER anonymous\\r\\n\" | nc 目标IP 21\n```\n预期结果：HTTP 返回状态行与 Server 头；Redis 返回 `-ERR unknown command`（说明协议通了，可进一步测未授权）；FTP 返回 `331 Please specify the password.`。\n如果不行：发了标准请求仍无响应，多半是私有二进制协议，交给 nmap -sV 兜底。\n\n#### 第 4 步：用 nmap 脚本兜底探测\n操作：让 nmap 的协议脚本替你发包解析：\n```bash\nnmap -sV --script banner -p 端口 目标IP\n```\n预期结果：输出 `banner: 具体服务欢迎语`，把前几步没读到的版本补全。\n如果不行：nmap 脚本也没结果，记录端口为「服务未知」，等后续流量分析或漏洞阶段再回看。\n\n#### 第 5 步：把 banner 里的版本号归档\n操作：把每条 banner 记录成 `服务 + 精确版本`，如 `ProFTPD 1.3.5e`、`nginx 1.18.0`，存入目标笔记。\n预期结果：一份可直接拿去 finger-cve 检索的版本清单。\n如果不行：banner 里只有大版本没有小版本（如 `Apache/2`），标注「版本不全」，检索时按家族查。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| nc 连上秒断无输出 | 服务需要先发指令才回话 | 用 printf 主动发包触发，别干等 |\n| banner 显示旧版本 | 服务做了版本伪装（改 banner） | 以行为特征（报错文案、JS 特征）二次确认 |\n| printf 请求被 WAF 拦 | 裸 HTTP 请求触发检测 | 换 `nc -l` 先看回包，再带全 Host 头重发 |\n| curl -sI 只有 404 无 Server 头 | 目标虚拟主机未匹配 | 加 `-H \"Host: 目标域名\"` 重试 |\n\n#### 实战要点\n- banner 里的版本号直接决定后续 CVE 检索范围，宁可多记一位小版本号也不要只记大版本。\n- 读到的版本先去 Exploit-DB 搜家族（如 `ProFTPD 1.3.5` 的 mod_copy 任意文件读取），很多老版本一查一个准。\n- nc 无回显不一定是服务不报 banner：先发标准请求，再考虑超时与防火墙因素。\n- 用 `-vz` 只是探测端口，真正读 banner 要完整连接（去掉 `-z`）并发送数据。"
+        }
+      ]
+    },
+    {
+      "id": "g-dir",
+      "name": "目录与源码泄露",
+      "intro": "Web 根目录下藏着多少不该公开的东西",
+      "entries": [
+        {
+          "id": "dir-scan",
+          "title": "目录扫描与工具对比",
+          "tags": [
+            "目录扫描",
+            "爆破"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "遍历常见路径，找出后台、备份、上传目录等未在首页暴露的入口。",
+          "content": "\n#### 这个条目的作用\n首页只是 Web 应用的冰山一角：后台登录页、上传目录、API 文档、备份文件夹往往藏在没链接的路径里。目录扫描就是拿字典里的路径名一个个去请求，凡返回 200/301/403 的都是入口线索。工具有很多，但核心思路一致：字典质量决定上限，工具只是执行者。\n\n#### 前置条件\n- 目标 HTTP 服务可访问（`curl -sI http://目标` 能通）\n- 装好至少一个扫描器（ffuf / dirsearch / gobuster，Kali 自带后两个）\n\n#### 第 1 步：准备一份好字典\n操作：先用手头的字典（如 `/usr/share/wordlists/dirb/common.txt`），再去 GitHub 找一份更新更全的（如 SecLists 的 `Discovery/Web-Content/` 系列）：\n```bash\nls /usr/share/wordlists/dirb/common.txt\n```\n预期结果：字典文件存在且能读到，行行都是路径名。\n如果不行：没有现成字典，先用手敲的十几个常见路径（admin/、backup/、upload/、.git/）应急。\n\n#### 第 2 步：用 ffuf 快速扫一遍\n操作：ffuf 用 FUZZ 占位符注入字典词，注意带上状态码过滤：\n```bash\nffuf -u http://example.com/FUZZ -w dict.txt -mc 200,301,302,403 -t 50\n```\n预期结果：屏幕列出命中的路径和状态码，如 `admin [Status: 200]`。\n如果不行：全是 404，先确认 `-mc` 过滤没把 404 放进来，再确认目标 URL 没写错。\n\n#### 第 3 步：用 dirsearch 做第二轮补充\n操作：dirsearch 自带丰富字典，直接指定扩展名和排除常见噪音：\n```bash\ndirsearch -u http://example.com -e php,bak,txt --exclude-status=404\n```\n预期结果：输出一批 ffuf 没扫到的路径，尤其是 `index.php.bak`、`config.txt` 这类带扩展名的文件。\n如果不行：无新结果，说明目标路径命名不常规，换大字典或进入第 4 步换工具交叉验证。\n\n#### 第 4 步：用 gobuster 交叉验证关键结果\n操作：对 ffuf/dirsearch 的差异结果，用 gobuster 再扫一遍确认：\n```bash\ngobuster dir -u http://example.com -w dict.txt -t 50 -x php,bak\n```\n预期结果：重复出现的路径基本可信；只在一个工具里出现的路径要手工 curl 复核。\n如果不行：三工具结果一致为空，考虑目标用了路由型框架（如前端 SPA），改用 JS 分析找接口。\n\n#### 第 5 步：验证结果并递归深入\n操作：对命中的目录加 `-r` 递归再扫，同时手工 curl 复核每个命中项的真实内容：\n```bash\nffuf -u http://example.com/admin/FUZZ -w dict.txt -mc 200,301,403 -t 50\ncurl -s http://example.com/admin/\n```\n预期结果：`/admin/` 下再扫出 `login`、`upload` 等二级路径，形成完整的目录树。\n如果不行：目录下全是 404，可能开启了目录列表保护或路径做了哈希，停止深挖该目录。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 扫描全是 404，但浏览器能打开首页 | 工具请求头被拒/未带 Host | 加 `-H \"Host: 目标域名\"` 和真实 UA |\n| 扫出大量 403 | 存在但禁止访问，也可能是 WAF 拦截 | 403 也是线索：单独手测绕过（见 waf 技能），别当噪音忽略 |\n| 扫到一半被断连 | 频率太高触发封 IP | 加 `-rate 10` 限速或 `-t 10` 降并发 |\n| 结果和浏览器不一致 | CDN/缓存干扰 | 直接解析出源站 IP 后对源站扫 |\n\n#### 实战要点\n- 字典优先级远高于工具：先跑 top 几千常用路径，再递归子目录（-r），最后补扩展名爆破。\n- 接口型站点优先扫 API 路径：`/api/`、`/v1/`、`/swagger/`、`/v2/`，比扫静态路径值钱。\n- 命中 403 不要略过：目录存在但被限制，往往比 200 更有价值（见 WAF 绕过链路）。\n- 扫描结果要手工复核：工具报 200 的可能只是统一 404 页面伪装，用 `curl -s 路径 | head` 看内容区分。"
+        },
+        {
+          "id": "dir-backup",
+          "title": "备份文件与版本控制泄露",
+          "tags": [
+            "源码泄露",
+            "备份"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "找备份压缩包、编辑器残留、版本控制目录与隐藏系统文件，直接拿到源码或配置。",
+          "content": "\n#### 这个条目的作用\n开发者最常见的失误是把备份、源码仓库、配置文件落在 Web 根目录：`.git/` 目录可达等于源码全量泄露，`.env` 里可能躺着数据库密码和云密钥，`backup.zip` 解出来就是整个站点。这类泄露是「一击致命」型漏洞——不需要任何利用技巧，只需知道该猜什么文件名。\n\n#### 前置条件\n- 目标可访问，且已做过一轮基础目录扫描（dir-scan）\n- 准备 curl（探测）与 GitTools（.git 拉取）工具\n\n#### 第 1 步：探测版本控制目录\n操作：直接请求版本库的关键文件，200 即泄露：\n```bash\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/.git/config\ncurl -s http://example.com/.git/config\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/.svn/entries\n```\n预期结果：`.git/config` 返回 200 且内容形如 `[core] repositoryformatversion = 0`，说明整个仓库可下载。\n如果不行：返回 404/403，说明目录被禁，跳过本步试第 2 步。\n\n#### 第 2 步：用 GitTools 把整个仓库拉下来离线分析\n操作：`.git/config` 确认可达后，用 dump 脚本整仓克隆：\n```bash\ngit clone https://github.com/internetwache/GitTools\ncd GitTools/Dumper\n./gitdumper.sh http://example.com/.git/ /tmp/target-git\ncd ../Extractor\n./extractor.sh /tmp/target-git /tmp/target-src\n```\n预期结果：`/tmp/target-src` 里出现完整源码树，用 `git log --all --oneline` 能看到历史提交。\n如果不行：gitdumper 中途报 404，说明只泄露了 config 没泄露对象文件，退化为逐文件猜备份。\n\n#### 第 3 步：探测配置与系统文件\n操作：请求最常见的敏感单文件：\n```bash\ncurl -s http://example.com/.env\ncurl -s http://example.com/.DS_Store\ncurl -s http://example.com/.htaccess\ncurl -s http://example.com/web.config\n```\n预期结果：`.env` 返回 `DB_PASSWORD=` 之类键值即高价值泄露；`.DS_Store` 返回二进制文件头 `\\x00\\x00\\x00\\x01Bud1`，可用工具解析出文件清单。\n如果不行：全 404，进入第 4 步猜备份压缩包。\n\n#### 第 4 步：按命名规律猜备份文件\n操作：备份命名常用「域名/目录名 + 扩展名」组合，配合目录扫描字典批量试：\n```bash\nfor f in backup.zip wwwroot.zip site.zip 1.sql db.sql config.bak; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com/$f\")\n  echo \"$f -> $code\"\ndone\n```\n预期结果：某个文件返回 200，下载后用 `file` 确认类型、`unzip`/`tar` 解开查看内容。\n如果不行：常见名全 404，用 dirsearch 带 `-e zip,rar,tar.gz,sql,bak` 跑扩展名爆破补一轮。\n\n#### 第 5 步：探测编辑器残留文件\n操作：源码编辑器会在目录留下临时文件，`.swp`、`.php~`、`index.php.bak` 都是经典目标：\n```bash\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/index.php~\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/.index.php.swp\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/config.php.bak\n```\n预期结果：某个返回 200，下载后通常能拿到可读的源码片段（`.swp` 用 `vim -r` 或 `strings` 提取）。\n如果不行：全 404，结束文件枚举，把已发现的泄露整理成清单。\n\n#### 第 6 步：整理泄露资产，提取高价值信息\n操作：把拿到的源码/配置按价值排序：数据库账号 → 云密钥（AK/SK）→ 内部 API 地址 → 业务逻辑源码，只记录位置与类型。\n预期结果：一份泄露清单，例如 `.git 全量源码 + .env 含 DB_PASSWORD`，作为后续漏洞挖掘的输入。\n如果不行：只拿到无关紧要的静态资源，标注低价值，继续其他信息收集。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| `.git/config` 200 但 gitdumper 拉不全 | 服务器禁止了部分对象请求 | 逐个请求 `objects/` 下的散列文件，或用 GitHack 类工具重试 |\n| 下载的 backup.zip 解压失败 | 传输被截断或非真实压缩包 | 用 `curl -C -` 断点续传，`file` 先验类型 |\n| `.DS_Store` 无法解析 | 本地缺解析工具 | 用 `ds_store_exp.py` 或在线解析器提取文件清单 |\n| robots 里没有备份线索 | 备份路径从不公开声明 | 依赖第 4 步命名规律 + 字典爆破，别指望 robots |\n\n#### 实战要点\n- `.git/config` 返回 200 后不要逐文件猜 URL，直接用 GitTools dump 整仓，效率高一个量级。\n- 备份文件命名常见组合：`域名.zip`、`wwwroot.zip`、`网站名.bak`、`1.sql`，配合目录扫描字典挨个试。\n- `.env`/备份 SQL 里最值钱的是数据库账号、云密钥、内部地址——发现即记录位置与类型，涉密数据不落盘扩散。\n- 拿到源码后优先看：数据库连接配置、鉴权逻辑、上传校验、硬编码密钥，这些直接导向下一个洞。"
+        },
+        {
+          "id": "dir-robots",
+          "title": "robots.txt 与 sitemap 解析",
+          "tags": [
+            "信息泄露",
+            "配置"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "从搜索引擎写给爬虫的说明书里反推隐藏目录与页面优先级。",
+          "content": "\n#### 这个条目的作用\nrobots.txt 是站长写给搜索引擎爬虫的「允许/禁止抓取」说明，sitemap.xml 是站点地图。它们不是安全机制，却常常把最不想公开的路径（`/admin/`、`/backup/`、`/.git/`）白纸黑字写出来。读这两份文件是零成本的信息收集，几秒钟就能收获手动枚举半天才找得到的路径线索。\n\n#### 前置条件\n- 目标 HTTP 服务可访问\n- 有 curl；解析 XML 可选装 xmllint\n\n#### 第 1 步：抓取 robots.txt 并逐行读\n操作：直接下载全文：\n```bash\ncurl -s http://example.com/robots.txt\n```\n预期结果：看到 `User-agent:` 与 `Disallow:` 行；没有 robots.txt 时返回 404 或空内容。\n如果不行：返回 404，说明没配 robots，跳过本步直接看 sitemap。\n\n#### 第 2 步：标记 Disallow 里的可疑路径\n操作：把 `Disallow:` 后面的路径全部抄出来，重点标记：含 admin/backup/upload/.git/db 等敏感词的路径。\n预期结果：得到候选清单，例如 `Disallow: /admin/`、`Disallow: /backup/`。\n如果不行：Disallow 全是不敏感路径（如 `/search`），说明 robots 没泄露，别硬挖。\n\n#### 第 3 步：手工验证每条 Disallow 路径\n操作：robots 只是「建议」不是「强制」，对每条候选路径逐个请求：\n```bash\nfor p in /admin/ /backup/ /uploads/ /.git/; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com$p\")\n  echo \"$p -> $code\"\ndone\n```\n预期结果：至少一条路径返回 200/301/403——200 直接进入，403 说明存在但被限，记入后续绕过清单。\n如果不行：全部 404，说明这些路径不存在或已迁移，确认 robots 是否指向旧路径。\n\n#### 第 4 步：抓取并解析 sitemap\n操作：下载 sitemap 并格式化查看，再提取全部 URL：\n```bash\ncurl -s http://example.com/sitemap.xml | xmllint --format -\ncurl -s http://example.com/sitemap.xml | grep -oP '<loc>\\K[^<]+' | sort -u > sitemap-urls.txt\n```\n预期结果：`xmllint` 输出可读的 XML 树；`sitemap-urls.txt` 里是一行一个的真实 URL。\n如果不行：没有 xmllint 就用 `grep -oP` 那步直接提取，或 `python3 -c \"import sys,xml.etree.ElementTree as E; ...\"` 解析。\n\n#### 第 5 步：展开嵌套子地图，批量探活全部 URL\n操作：sitemap 常常不止一个，先查是否嵌套子地图，再对全部 URL 批量探活：\n```bash\ngrep -oP '<loc>\\K[^<]+' sitemap-urls.txt | grep -i 'sitemap'   # 找嵌套索引\nwhile read -r u; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"$u\")\n  echo \"$code $u\"\ndone < sitemap-urls.txt | sort\n```\n预期结果：发现 `sitemap-index.xml` 或按栏目拆分的子地图；探活结果里出现 200 的隐藏页面。\n如果不行：sitemap 只有首页等公开 URL，价值有限，标注后继续其他信息收集。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| robots.txt 404 | 站点根本没配 | 正常现象，跳过直接看 sitemap |\n| Disallow 路径请求全是 404 | 路径已下线或本就不存在 | 用 dir-scan 字典补扫，别只信 robots |\n| sitemap.xml 报 XML 解析错误 | 文件被压缩或非标准格式 | 先 `curl -s | head -c 200` 看原始内容 |\n| grep 提取的 URL 带尾部斜杠/参数 | 正则没匹配干净 | 用 `sort -u` 去重，手工抽查前 10 条 |\n\n#### 实战要点\n- 很多站点的 sitemap 不止一个：`sitemap.xml` 里常嵌套 `sitemap-index.xml` 或按栏目拆分的子地图，全部展开取 URL 列表再批量探活。\n- robots 是「建议」不是「强制」，Disallow 的路径恰恰是最值得手测的目标——站长以为藏住了，其实等于公告。\n- 拿到的 URL 列表顺手丢给后续扫描器当种子字典，比通用字典命中率高得多。\n- robots/sitemap 没收获很正常，它们是信息收集的甜点不是正餐，别在这上面耗太久。"
+        }
+      ]
+    },
+    {
+      "id": "g-finger",
+      "name": "Web 指纹与组件",
+      "intro": "认出框架版本，CVE 就是现成的弹药",
+      "entries": [
+        {
+          "id": "finger-identify",
+          "title": "框架与 CMS 指纹识别",
+          "tags": [
+            "指纹识别",
+            "CMS"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "用指纹库判定后端框架、CMS、中间件版本，为后续 CVE 检索圈定范围。",
+          "content": "\n#### 这个条目的作用\nWeb 应用大多基于现成框架与 CMS 搭建：ThinkPHP、Laravel、WordPress、Discuz……每个组件都有标志性的响应头、Cookie、页面特征。指纹识别就是把这些特征收集起来，判定「目标是什么框架 + 什么版本」。认出版本的那一刻，攻击就从「瞎猜」变成「查表」——直接去漏洞库找该版本的已知漏洞。\n\n#### 前置条件\n- 目标可访问，能打开首页\n- 装了 whatweb（Kali 自带）或浏览器装了 Wappalyzer 插件\n\n#### 第 1 步：用 whatweb 做全量指纹扫描\n操作：命令行直接扫，`-a 3` 是激进模式（多请求、多特征）：\n```bash\nwhatweb -a 3 http://example.com\n```\n预期结果：输出一串指纹，如 `[200 OK] Nginx[1.18.0], PHP[7.4.3], Laravel, Cookies[laravel_session]`。\n如果不行：whatweb 没识别出东西，说明站点特征弱或做了隐藏，进入第 2 步手工看响应头。\n\n#### 第 2 步：手工读响应头找指纹\n操作：curl 取响应头，盯住几个关键字段：\n```bash\ncurl -sI http://example.com\ncurl -sI http://example.com | grep -iE 'server|x-powered-by|set-cookie|via'\n```\n预期结果：看到 `Server: nginx/1.18.0`、`X-Powered-By: PHP/7.4.3`、`Set-Cookie: PHPSESSID=...` 等。\n如果不行：响应头很干净（可能套了 CDN），进入第 3 步看页面源码特征。\n\n#### 第 3 步：从页面源码找特征\n操作：抓首页源码，搜生成器 meta、版权字符串、框架专属路径：\n```bash\ncurl -s http://example.com | grep -ioE '<meta[^>]*generator[^>]*>|wp-content|thinkphp|laravel|drupal|joomla'\ncurl -s http://example.com | grep -oP 'src=\"\\K[^\"]+\\.(js|css)' | head -20\n```\n预期结果：出现 `<meta name=\"generator\" content=\"WordPress 6.0\" />`、`/wp-content/` 路径等标志。\n如果不行：源码也被混淆或最小化，进入第 4 步用 Cookie 与报错页判定。\n\n#### 第 4 步：用 Cookie 名与报错特征交叉判定\n操作：查看 Set-Cookie 的会话名，并故意触发一个错误页观察风格：\n```bash\ncurl -sI http://example.com | grep -i set-cookie\n# PHP 站点常见 PHPSESSID / laravel_session / JSESSIONID / csrftoken\ncurl -s \"http://example.com/index.php?id=1'\" | head -30\n```\n预期结果：Cookie 名直接暴露语言栈（`JSESSIONID`=Java、`laravel_session`=Laravel/PHP）；报错页里可能出现 `ThinkPHP`、`Django` 等框架名与版本号。\n如果不行：错误页是统一 500 页面，无特征可挖，如实记录「指纹不明」。\n\n#### 第 5 步：用 Wappalyzer 被动嗅探前端技术栈\n操作：浏览器装 Wappalyzer 扩展，打开目标页面，查看其识别的技术栈（框架、JS 库、CDN）。\n预期结果：补充 whatweb 漏掉的前端信息，如 `Vue.js`、`jQuery`、`Element UI`、`React`。\n如果不行：Wappalyzer 识别为空，以 whatweb + 手工特征的结果为准。\n\n#### 第 6 步：归档指纹结果\n操作：按「组件 + 版本」格式整理，如 `nginx 1.18.0 / PHP 7.4.3 / Laravel 8.x / Vue 2`。\n预期结果：一份可直接交给 finger-cve 检索的清单。\n如果不行：版本号缺失，标注「版本未知」，按家族特征缩小范围（见实战要点）。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| whatweb 什么也没识别 | 站点特征弱或套了 CDN | 对源站 IP 扫，配合 -a 3 激进模式 |\n| 识别出多个冲突框架 | 用了聚合框架或前后端分离 | 区分「后端框架」与「前端库」，各记各的 |\n| 版本号对不上 | 指纹库滞后或版本伪装 | 用手工特征（报错文案、JS 版本注释）二次确认 |\n| 报错页有框架名但被统一拦截 | 开启了 debug=false | 试 `?debug=1`、`/index.php?s=/` 等入口触发调试模式 |\n\n#### 实战要点\n- 指纹结果按「框架 + 版本」归档，再去版本库批量查 CVE；版本号缺失时用手法差异（报错页面、JS 特征）缩小范围。\n- Cookie 名是最快的语言栈判据：`PHPSESSID`/`laravel_session`=PHP，`JSESSIONID`=Java，`csrftoken`=Django。\n- 前后端分离的站点别只盯后端：前端框架（Vue/React）的版本同样关联公开漏洞（如 Vue 旧版 XSS 链）。\n- 指纹识别要覆盖多个页面：后台登录页、报错页、静态资源路径往往比首页暴露更多特征。"
+        },
+        {
+          "id": "finger-cve",
+          "title": "指纹到 CVE 的检索链路",
+          "tags": [
+            "CVE",
+            "指纹"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "拿到组件与版本号后，把公开漏洞情报翻译成可执行的利用候选。",
+          "content": "\n#### 这个条目的作用\n指纹识别的产出是「组件 + 版本」，但版本号本身不值钱——值钱的是它对应的已知漏洞。这一条讲清楚检索链路：从哪里查、按什么套路查、怎么把 CVE 情报变成可验证的利用候选。目标是让每个识别出的组件都能回答三个问题：有没有公开漏洞？漏洞能不能打到这个版本？有没有现成 PoC？\n\n#### 前置条件\n- 已完成指纹识别，拿到至少一个「组件 + 版本」组合（如 `nginx 1.18.0`、`ThinkPHP 5.0.23`）\n- 有网络访问漏洞库的能力（浏览器或 curl）\n\n#### 第 1 步：先看厂商官方安全公告\n操作：去组件的官网安全页/发布页查该版本是否有安全更新：\n```bash\n# 例：搜索目标组件官方公告\ncurl -s \"https://www.google.com/search?q=ThinkPHP+5.0.23+security+advisory\" | grep -oP 'href=\"\\Khttp[^\"]+' | head\n```\n预期结果：官方公告给出受影响版本范围与修复版本，直接确认「我们的版本是否命中」。\n如果不行：官网没公告或目标组件已停止维护，进入第 2 步用 NVD 精确匹配。\n\n#### 第 2 步：用 NVD/CVE 官网按 CPE 精确匹配\n操作：在 NVD（nvd.nist.gov）搜索组件名，找到对应的 CPE 字符串后按版本过滤：\n```txt\n# 检索源优先级：\n# 1. NVD / CVE 官网：nvd.nist.gov 按 CPE 精确匹配\n# 2. Exploit-DB：exploit-db.com 按组件名搜索，看现成 PoC\n# 3. GitHub：搜 \"组件名 CVE 版本\" 找 POC 仓库\n# 4. 搜索引擎：组件名 + 版本 + 漏洞/遍历/未授权\n# 5. 厂商公告页：官方安全通告最权威，先看这个\n```\n预期结果：得到该组件的 CVE 列表，每条含受影响的版本区间，标注出「命中我们的版本」的 CVE。\n如果不行：NVD 查不到，说明组件太冷门或版本太新，进入第 3 步用 Exploit-DB 兜底。\n\n#### 第 3 步：去 Exploit-DB 找现成 PoC\n操作：在 exploit-db.com 搜索「组件名 版本」，或用 searchsploit 本地查：\n```bash\nsearchsploit thinkphp 5.0\nsearchsploit \"nginx 1.18\"\n```\n预期结果：输出匹配的漏洞条目与 PoC 编号，如 `ThinkPHP 5.0.x - Remote Code Execution | php/webapps/XXXXX`。\n如果不行：Exploit-DB 无记录，进入第 4 步去 GitHub 找 POC 仓库。\n\n#### 第 4 步：去 GitHub 找 POC 仓库\n操作：按检索套路在 GitHub 搜索，优先找 star 高、更新近的仓库：\n```txt\n检索套路：\n\"组件 版本 CVE\"\n\"组件 版本 漏洞\"\n\"组件 版本 未授权\"\n\"组件 版本 RCE POC\"\nsite:github.com 组件 版本 exploit\n```\n预期结果：找到若干 PoC 仓库，README 里通常写着适用版本与用法。\n如果不行：GitHub 也搜不到，说明该版本大概率无公开利用，把组件标为「无已知公开漏洞」。\n\n#### 第 5 步：核对版本号与利用条件\n操作：把 CVE 描述里的受影响版本区间与自己的指纹逐位对比（如 `ThinkPHP < 5.0.24`，而目标是 5.0.23 → 命中），并确认前置条件（是否需登录、是否需特定配置）。\n预期结果：筛选出 1-3 个「版本命中 + 前置条件满足」的候选漏洞，形成利用清单。\n如果不行：版本号差一位（如目标是 5.1.x 而漏洞只影响 5.0.x），按家族缩小范围当「同类」参考，别硬套。\n\n#### 第 6 步：在隔离环境验证 PoC\n操作：下载 PoC 后先读源码确认无恶意载荷，在自己的隔离环境（Docker/虚拟机）搭同版本组件复现，再决定是否对目标使用：\n```bash\ngit clone https://github.com/xxx/yyy-poc\n# 先读代码：grep -nE 'curl|wget|base64|exec' 确认无后门\ndocker run --rm -p 8080:80 同版本组件镜像   # 本地复现\n```\n预期结果：PoC 在本机复现成功，确认利用链真实可用，再对目标最小化验证。\n如果不行：PoC 在本机就失败，说明环境差异或 PoC 有误，放弃该候选换下一个。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 搜到的 CVE 版本区间不含目标版本 | 版本号看错或指纹不准 | 回到 finger-identify 重新确认版本，别拿错误输入检索 |\n| PoC 一跑就报错 | PoC 依赖特定环境/参数 | 读 README 检查依赖，在 Docker 里补齐环境 |\n| 下载的 PoC 里有可疑命令 | 恶意作者植入后门 | 先 grep 审计再运行，陌生 PoC 一律隔离环境执行 |\n| 目标打了补丁仍报漏洞 | CVE 被修复但指纹没更新 | 用实际行为验证（发探测请求看响应），别只信版本号 |\n\n#### 实战要点\n- 检索优先级：官方公告 > NVD/Exploit-DB > GitHub PoC > 搜索引擎；版本号对不上就缩小范围当「同类家族」查。\n- 下载他人 PoC 先读代码确认无恶意载荷，再在自己的隔离环境复现——陌生脚本直接跑是大忌。\n- 多个 CVE 命中时按「利用难度 × 影响面」排序：未授权 RCE > 需登录 RCE > 信息泄露，先打影响最大的。\n- 版本号缺失时用行为验证兜底：发探测请求（如 ThinkPHP 报错页、Spring 的 actuator 路径）确认真实版本后再检索。"
+        },
+        {
+          "id": "finger-default",
+          "title": "框架默认路径与常见面板",
+          "tags": [
+            "指纹",
+            "默认路径"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "指纹一确认，直接探测该组件自带的默认入口与管理面板。",
+          "content": "\n#### 这个条目的作用\n指纹识别只能告诉你\"目标用了什么框架\"，而默认路径探测是把指纹变成可用入口的关键一步：Adminer、phpMyAdmin、Spring Boot Actuator 这些组件都会在固定路径暴露管理面板、调试接口甚至数据库管理页。一条 curl 就能验证是否有未授权访问，是 CTF 里性价比最高的探测动作之一。\n\n#### 前置条件\n- 已确认目标框架指纹（用 whatweb、Wappalyzer、报错页特征、favicon hash 任意一种，参见 g-finger 前几个条目）\n- 有目标站点的完整 URL（含协议，如 `http://example.com`），浏览器与 curl 均可访问\n- 确认本次测试在授权范围内（CTF 靶场 / 授权 SRC 测试），管理面板弱口令属于攻击行为，切勿在未授权目标上做\n\n#### 第 1 步：确认指纹后再动手\n指纹没确认就乱扫默认路径，等于盲猜。先用一行命令确认：\n```bash\nwhatweb http://example.com\n# 或看响应头：Server / X-Powered-By / Set-Cookie 都会泄露组件信息\ncurl -sI http://example.com\n```\n预期结果：命令行打出框架名（如 `Adminer`、`Spring-Boot`、`Laravel`）。如果指纹不明，先回到指纹识别条目补齐，再继续。\n\n#### 第 2 步：对照默认路径表\n指纹确认后，在下表里找到该组件对应的默认路径（本表是 CTF 与 SRC 中最常出现的一批）：\n\n| 组件 | 默认路径 |\n| --- | --- |\n| Adminer | /adminer.php、/adminer/ |\n| phpMyAdmin | /phpmyadmin/、/pma/ |\n| Spring Boot | /actuator、/actuator/env、/actuator/heapdump |\n| Swagger | /swagger-ui.html、/v3/api-docs、/swagger/index.html |\n| ThinkPHP | /index.php?s=/index/\\think\\app/invokefunction |\n| Laravel | /_ignition/execute-solution |\n| phpinfo | /phpinfo.php、/info.php、/test.php |\n| Webmin | :10000 |\n| Zabbix | /zabbix/ |\n| Grafana | /login（常见默认口令 admin/admin） |\n\nThinkPHP 的默认路径里带反斜杠，在 bash 里必须用单引号包住 URL 防止转义（见第 3 步示例）。\n\n#### 第 3 步：批量探测默认路径\n把第 2 步表里该组件相关的路径放进循环，一次批量验证：\n```bash\nfor p in /adminer.php /adminer/ /phpmyadmin/ /pma/ /actuator /actuator/env /swagger-ui.html /phpinfo.php; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com$p\")\n  echo \"$p -> $code\"\ndone\n```\nThinkPHP 那一条单测（注意单引号）：\n```bash\ncurl -s -o /dev/null -w \"%{http_code}\" 'http://example.com/index.php?s=/index/\\think\\app/invokefunction'\n```\n预期结果：每个路径打印一个 HTTP 状态码。**200 表示页面存在**，这是最高优先级；302 多半是登录跳转，也值得点开确认；404 则跳过。\n\n#### 第 4 步：区分\"存在\"与\"可未授权访问\"\n状态码 200 只是第一步，还要看内容：\n```bash\n# 抓页面标题与关键特征，判断是登录框还是直接暴露的功能\ncurl -s http://example.com/adminer.php | grep -oiE '<title>[^<]*</title>'\n```\n- Adminer / phpMyAdmin：出现**登录框** → 记下来，后面弱口令阶段处理；**不需要登录直接可见数据库结构** → 严重未授权，立即停手记录上报\n- Spring Boot `/actuator`：返回 JSON 端点列表 → 已是未授权信息泄露；继续看 `/actuator/env` 能否读到环境变量\n- Swagger `/swagger-ui.html`：能打开 UI 或 `/v3/api-docs` 返回 JSON → 拿到整套 API 文档\n\n#### 第 5 步：管理面板默认口令（仅授权目标）\nGrafana、Zabbix、Webmin 这类面板通常有公开默认口令（Grafana 常见 `admin/admin`）。只在授权测试里尝试，一次失败即放弃，不要爆破。成功登录后记录版本号，去查对应 CVE。\n\n#### 第 6 步：高危泄露点单独记档\n遇到 Spring Boot 时把下面这条单独标记出来，这是全条目里最危险的一个点：\n\n> [!danger]\n> Spring Boot actuator 的 `/actuator/heapdump` 能直接下载堆内存，含大量环境变量与密钥——这是高危信息泄露点，发现即记录，验证后立即收手并上报。\n\n验证方式：`curl -s -o heapdump.bin -w \"%{http_code} %{size_download}\" http://example.com/actuator/heapdump`，返回 200 且体积为 MB 级即命中。**不要**对下载的堆做进一步利用，截图记录后上报。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 指纹明确但默认路径全 404 | 组件装在子目录或改了路径 | 换 `/adminer/`、`/vendor/adminer/` 等常见子目录；或看前端 JS / 网页源码里的链接 |\n| ThinkPHP 命令报错或 URL 被改写 | 反斜杠被 bash 或代理转义 | 用单引号包 URL；Burp 里发送前检查请求行 |\n| `/actuator` 返回 404 但确实有 Spring | Spring Boot 2.x 默认只暴露 health | 试 `/actuator/env`、`/actuator/mappings`、`/actuator/beans`，或加上 `management.endpoints.web.exposure` 特征不看 |\n| 状态码 200 但内容是 404 错误页 | 框架自定义了 404 状态码 | 用 `grep` 检查页面标题/正文关键词，不要只信状态码 |\n\n#### 实战要点\n- 顺序固定：先指纹、再查表、后探测，探测结果按 200 / 302 / 404 三档归档\n- 每发现一个面板记下版本号，版本 = 后续 CVE 检索的输入\n- phpMyAdmin / Adminer 的 200 即使只有登录框也价值极高：弱口令、SQL 注入入口、文件包含都可能从这里展开\n- Heapdump、未授权 actuator、Swagger 属于\"发现即记录、验证即停手\"的高危点，CTF 里直接算拿到分，SRC 里走上报流程"
+        }
+      ]
+    },
+    {
+      "id": "g-js",
+      "name": "JS 与接口提取",
+      "intro": "前端代码里藏着后端的地图",
+      "entries": [
+        {
+          "id": "js-extract",
+          "title": "页面 JS 抓取与分析",
+          "tags": [
+            "JS分析",
+            "接口提取"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "把页面引用的 JS 全部拉下来，从源码里搜接口、密钥、硬编码逻辑。",
+          "content": "\n#### 这个条目的作用\n现代网站的前端 JS 是攻击面的\"藏宝图\"：API 路径、加密/签名逻辑、写死的密钥、隐藏路由都编译在脚本里。把页面引用的 JS 全部拉下来并做静态搜索，往往比目录扫描更快找到真实接口——因为 JS 里的地址是前端真正在调用的，几乎不会有假目标。\n\n#### 前置条件\n- 能通过 curl 或浏览器访问目标\n- 本机有 curl、grep（GNU 版，支持 `-P` 正则）、node/npx（用于美化压缩 JS）\n- 授权范围确认（JS 分析属被动信息收集，但后续调用发现的接口要遵守授权边界）\n\n#### 第 1 步：抓页面，提取 JS 引用列表\n主页是入口，先把它引用的所有 `.js` 抓出来：\n```bash\ncurl -s http://example.com | grep -oP 'src=\"\\K[^\"]+\\.js' | sort -u > js-list.txt\ncat js-list.txt\n```\n预期结果：`js-list.txt` 里每行一个 JS 路径，可能是相对路径（`/static/js/app.js`）也可能是完整 URL。如果列表为空，检查目标是否用了 `src='` 单引号或动态加载，改用浏览器开发者工具 Network 面板手工收集。\n\n#### 第 2 步：批量下载全部 JS\n用列表逐个下载，相对路径拼上站点根：\n```bash\nwhile read -r u; do\n  case \"$u\" in\n    http*) url=\"$u\" ;;\n    *) url=\"http://example.com$u\" ;;\n  esac\n  curl -s \"$url\" -o \"$(basename \"$u\")\"\ndone < js-list.txt\nls -la *.js\n```\n预期结果：目录里出现所有 JS 文件，体积从几 KB（压缩后）到上百 KB 不等。\n\n#### 第 3 步：美化压缩代码，让它可读\n生产 JS 几乎都是压缩成一行的，先 beautify：\n```bash\nnpx js-beautify app.js > app.beauty.js\n```\n预期结果：生成缩进良好的 `app.beauty.js`。没有 node 环境就用浏览器：开发者工具 → Sources → 点左下角 `{}` 按钮，效果相同。压缩文件很大时只对重点文件做，别浪费带宽。\n\n#### 第 4 步：正则搜接口路径\n接口是最先要找的，重点看 `/api/` 前缀：\n```bash\ngrep -rnoE '\"/api/[^\"]+\"' *.js | sort -u\n# 更宽泛：所有看起来像路径的字符串\ngrep -rnoE '\"/[a-zA-Z0-9_/-]+\"' *.js | sort -u\n```\n预期结果：一列接口路径，如 `\"/api/user/info\"`。**所有搜集到的接口都要与第 1 步的页面 URL 交叉**：能在 JS 里出现的接口，大概率真实存在，直接进入后续测试清单。\n\n#### 第 5 步：正则搜密钥与敏感字符串\n硬编码密钥是 JS 分析的高价值产出：\n```bash\ngrep -rniE 'api[_-]?key|api[_-]?secret|token|password|access[_-]?key' *.js\ngrep -rniE 'sk-[a-zA-Z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}' *.js\n```\n预期结果：命中含 `token`、`secret`、形如 `sk-xxx` 的 OpenAI Key、`AIza...` 的 Google Key 之类的行。找到后**核对上下文**：有些只是变量名不是真密钥；真密钥记录为高危发现。\n\n#### 第 6 步：找请求封装层，重建\"接口地图\"\n接口散落各处，先找封装层再顺着逻辑读。定位特征：`axios.create`、`fetch(`、`baseURL`、`$http`、`request(`：\n```bash\ngrep -rnE 'axios\\.create|baseURL|fetch\\(' *.js | head -20\n```\n预期结果：看到统一的 API 前缀（如 `baseURL: '/api/v1'`）与请求函数。从封装层出发，逐个函数追它调的路径、参数、方法（GET/POST），做成接口清单。\n\n#### 第 7 步：别漏登录后页面与不同端\n只抓首屏 JS 会漏掉大量接口。补一轮：\n\n> [!tip]\n> 别只抓首屏 JS：登录后才能看到的页面、子域名下不同端的 JS（管理端、移动端、小程序包）往往藏着更多接口。\n\n- 登录后再次执行第 1-2 步（后台页面的 JS 通常引用管理接口）\n- 子域名逐个来一遍：`admin.example.com`、`api.example.com` 的 JS 各自独立\n- 遇到混淆的 JS：先 beautify，再按字符串特征与调用链人工分析\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| `grep -oP` 报错 \"invalid option\" | macOS 自带的 BSD grep 不支持 `-P` | 装 GNU grep（`brew install grep`）或用 `grep -oE 'src=\"[^\"]+\\.js\"'` 后自行去引号 |\n| js-list.txt 为空 | 页面用单引号、动态 import 或内联脚本 | 改用浏览器 Network 面板看 JS 请求；或直接 `grep -oE \"[^\\\"']+\\.js\"` |\n| 下载的文件是 HTML | 路径 404 或需要登录 | 看文件头是否为 `<html>`；把 URL 拼对、带上 Cookie 重下 |\n| 正则搜不到接口 | 接口路径拼接在变量里 | 先看 baseURL/`concat`/模板字符串，再回第 6 步 |\n| 找到的 token 是假的 | 前后端各存一份，前端只是占位 | 对比线上请求实际带的 header，再看后端是否校验 |\n\n#### 实战要点\n- 接口优先于密钥：JS 里的接口是真实攻击面，密钥是加分项，两者顺序不要反\n- 保存原始文件与 beautify 后各一份，方便后续用 `diff` 或 grep 复查\n- 把接口清单按\"方法+路径+参数\"整理成表格，它就是下一阶段越权/注入测试的输入\n- 移动端与小程序端的 JS 往往更不设防，接口命名更直白，是隐藏入口的高发区"
+        },
+        {
+          "id": "js-burp-api",
+          "title": "Burp 被动抓包与接口清单",
+          "tags": [
+            "抓包",
+            "接口"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "让 Burp 在正常浏览过程中被动收录所有 JS 与 XHR，形成完整接口地图。",
+          "content": "\n#### 这个条目的作用\nJS 静态分析能找到\"代码里写的\"接口，但真实请求里还有静态分析看不到的内容：登录后动态拼接的路径、分页参数、上传接口、验证码接口。Burp 被动抓包不修改任何数据，只是让浏览器流量经过代理，就能把全站实际发生的请求完整收录成接口清单。\n\n#### 前置条件\n- Burp Suite Community 或 Professional 已安装并启动\n- 浏览器已配置走 Burp 代理（默认 `127.0.0.1:8080`），且已安装 Burp CA 证书（否则 HTTPS 站点抓不到明文）\n- 有目标的登录账号（后台页面往往才是接口富矿），授权范围内测试\n\n#### 第 1 步：确认代理与证书生效\nBurp 默认监听 `127.0.0.1:8080`（Proxy → Options 可确认）。浏览器访问 `http://burp` 能看到欢迎页即证书链路正常。用 `http://example.com` 打开，切到 Burp 的 HTTP history，确认请求在实时滚动。\n\n#### 第 2 步：正常浏览全站功能\n这一步要点是\"演一遍真实用户\"而非脚本扫描：\n\n```txt\n流程：\n1. Burp 挂代理，浏览器走代理正常浏览全站功能\n2. Target -> Site map 展开目标，看全部请求记录\n3. 过滤 js/css/image 后缀，剩下 XHR 即 API 列表\n4. 对每个 API 记录：方法、路径、参数、返回结构\n5. 重点关注：/api/、/admin/、/internal/、/debug/ 前缀\n```\n\n- 从头页开始：注册/登录 → 个人信息页 → 任意详情页 → 搜索 → 上传 → 退出登录\n- 每个页面停留几秒，让懒加载与轮询请求发完\n- 管理后台（如有权限）单独完整走一遍\n\n#### 第 3 步：在 Site map 里展开目标\n切到 `Target → Site map`，左侧树里展开目标域名（可先 Filter 只显示目标 host）。右侧出现该站点的全部请求记录。这一步不用操作，只是把第 2 步的结果结构化。\n\n#### 第 4 步：过滤静态资源，得到纯 API 列表\n在 HTTP history 顶部的 Filter 栏勾选 Hide 掉 `js|css|image|font` 等后缀，或直接按 MIME type 过滤：\n```txt\n只保留 XHR / Fetch 请求（开发者工具里通常标为 XHR 那类），\n或按扩展名过滤后剩下 .json、无后缀、/api/ 开头的请求。\n```\n预期结果：列表里只剩接口请求，每条都有方法、路径、参数、响应状态。\n\n#### 第 5 步：逐个记录接口，形成清单\n对每个接口记四列：**方法 / 路径 / 参数 / 返回结构**。返回结构看响应体：`{\"code\":0,\"data\":[...]}` 这类 JSON 说明是业务接口，值得进测试清单；401/403 的接口记下来等鉴权绕过阶段处理。重点关注前缀：\n\n```txt\n/api/    业务接口主战场\n/admin/  管理功能\n/internal/ 内部服务\n/debug/  调试接口（几乎必有问题）\n```\n\n#### 第 6 步：导出 Sitemap 交给命令行加工\nBurp 的 Sitemap 可以全量导出，再用正则抠出接口路径：\n```bash\n# Burp: Site map -> 目标 -> 右键 -> Export items in this branch -> 存为 exported.txt\ngrep -oP '\"/[a-z0-9_/-]+\"' exported.txt | sort -u\n```\n预期结果：一份去重后的路径列表。与 JS 静态分析得到的清单合并、去重，就是最终接口地图。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| HTTPS 页面显示证书错误 | Burp CA 未安装或未信任 | 浏览器访问 `http://burp` → CA Certificate 下载安装，并在系统/浏览器信任列表启用 |\n| history 里没有请求 | 浏览器没走代理，或代理端口不对 | 确认浏览器代理为 `127.0.0.1:8080`；Burp Proxy → Options 核对监听端口 |\n| 只有 GET 没有 POST | 浏览不够全，表单没提交 | 回到第 2 步补齐登录、搜索、提交类操作 |\n| 请求一大堆但分不清接口 | 没有过滤静态资源 | 用 Filter 隐藏 js/css/image，或按 MIME `json` 过滤 |\n| 登录后接口 401 | 会话 Cookie 未带上 | 确认 Burp 的 Cookie jar 生效，浏览器保持登录态再抓 |\n\n> [!warn]\n> 被动收集阶段只做浏览与记录，不主动改包重放；未授权接口清单整理好后再统一进测试阶段逐条验证。\n\n#### 实战要点\n- 被动阶段铁律：只浏览、不重放、不改包，把验证动作全留到测试阶段\n- 轮询/心跳接口噪音大，先标出来，别让它淹没真正的高价值接口\n- 与 js-extract 的静态清单互相印证：静态有而抓包没有的接口 = 隐藏功能，优先测\n- 管理后台的请求即使返回 403 也要记录，它是后续越权测试的靶子\n- 每个接口顺手记下它对应的页面，测试阶段可以直接回放"
+        },
+        {
+          "id": "js-sourcemap",
+          "title": "Source Map 还原与 JSFinder",
+          "tags": [
+            "JS分析",
+            "SourceMap"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "生产包若残留 source map，可以直接还原近乎完整的原始源码；JSFinder 负责自动化提取域名与接口。",
+          "content": "\n#### 这个条目的作用\nwebpack 等打包工具会在生产 JS 尾部留一行 `sourceMappingURL` 指向 `.map` 文件。只要这个文件没删，就等于把**原始源码**白送给你：变量名、注释、目录结构全部还原，加密逻辑、鉴权中间件、隐藏路由一览无余。而 JSFinder 是自动化提取 JS 里的域名与 URL 的利器，两者配合，前端就不再有秘密。\n\n#### 前置条件\n- 上一轮已拉下目标的部分 JS（js-extract 的产物），或至少知道 JS 的 URL\n- node/npx 可用（source-map-explorer 需要）\n- Python3 可用（JSFinder 需要，若用其源码版）\n\n#### 第 1 步：探测 JS 尾部是否有 sourceMappingURL\n压缩后的 JS 最后一行是给构建工具看的：\n```bash\ncurl -s http://example.com/app.js | tail -5\n# 或直接搜\ncurl -s http://example.com/app.js | grep -i 'sourceMappingURL'\n```\n预期结果：出现 `//# sourceMappingURL=app.js.map` 或 `/*# sourceMappingURL=... */` 这类标识。没有输出 = 该文件没带 map，换其他 JS 再试（webpack 产物常见 `static/js/main.xxxx.js.map`）。\n\n#### 第 2 步：拼出 map 文件的实际地址\nsourceMappingURL 里的路径是相对当前 JS 的：\n```bash\n# 若 JS 在 http://example.com/static/js/main.ab12cd.js\n# map 大概率在：http://example.com/static/js/main.ab12cd.js.map\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://example.com/static/js/main.ab12cd.js.map\n```\n预期结果：返回 200 且 Content-Type 是 JSON → map 存在，继续第 3 步。404 就换文件名变体试（`main.js.map`、去掉 hash 的版本）。\n\n#### 第 3 步：列出 map 里的原始文件清单\nmap 的 `sources` 数组就是构建前的源码路径：\n```bash\ncurl -s http://example.com/static/js/main.ab12cd.js.map | jq -r '.sources[]' > sources.txt\nwc -l sources.txt && head -20 sources.txt\n```\n预期结果：列出 `./src/App.js`、`webpack://src/api/request.js` 之类的原始路径。数量从几个到几百个不等，越多越值钱。\n\n#### 第 4 步：下载源码文件\nsources 里的路径以 map 所在目录为基准（`webpack://` 前缀需手动去掉）：\n```bash\nmkdir -p src && cd src\nwhile read -r s; do\n  f=\"${s#webpack://}\"           # 去掉虚拟协议前缀\n  f=\"${f#./}\"                   # 去掉相对路径前缀\n  curl -s \"http://example.com/static/js/$f\" -o \"$(basename \"$f\")\"\ndone < ../sources.txt\nls src/\n```\n预期结果：目录里出现还原出的源文件。部分路径（`webpack://`）下载不到属正常现象，能拿到 `src/` 下的业务代码就是大头。\n\n#### 第 5 步：用 source-map-explorer 看体积分布\n先整体看一次，找出大头文件：\n```bash\nnpx source-map-explorer app.js\n```\n预期结果：生成一个 HTML 报告，按源码文件显示体积占比。重点不是看体积，而是确认**哪些源文件被还原出来**——业务目录（`src/`）出现即成功。\n\n#### 第 6 步：JSFinder 自动化提取域名与接口\n没有 JSFinder 就手动查也行，有它就快得多。先下载工具（`https://github.com/Threezh1/JSFinder`，或直接用自己的脚本）：\n```bash\ngit clone https://github.com/Threezh1/JSFinder.git && cd JSFinder\npython JSFinder.py -u http://example.com\npython JSFinder.py -u http://example.com -d    # 深度爬取，跟着页面里的链接继续抓\n```\n预期结果：输出该站点 JS 里出现的子域名、URL、接口路径。收集后与第 4 步的还原源码交叉验证。\n\n#### 第 7 步：优先阅读还原出的\"高价值源码\"\n不是所有源码都值得读，按这个顺序看：\n\n> [!tip]\n> source map 还原后优先看：加密/签名逻辑、鉴权中间件、隐藏路由表、写死的内网地址——这些是比接口本身更值钱的情报。\n\n- `src/api/`、`src/utils/request.js`：接口封装与拦截器，含 token 处理逻辑\n- `src/router/`：路由表里藏着没在页面出现的隐藏页面\n- 任何含 `decrypt`、`sign`、`aes`、`rsa` 关键字的文件：前端加密逻辑，后续改包测试的钥匙\n- 含 `10.x.x.x`、`192.168.x.x`、`172.x.x.x` 内网地址的文件：内网拓扑线索\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 找不到 sourceMappingURL | 构建时关了 source map，或 map 被单独上传到其他主机 | 换 JS 再探测；部分站点 map 在 `cdn.example.com` 上，源码仓库里也可能残留 `.map` 文件 |\n| map 返回 200 但是 HTML | 路径 404 被框架兜底成 200 | 看响应体开头是不是 `{`，是 JSON 才是真 map |\n| jq 报错 parse error | 下载的不是合法 JSON | 先 `head -c 200` 看内容；若被 gzip 压缩需 `curl --compressed` |\n| sources 里全是 webpack:// 路径 | map 用了默认输出格式 | 去掉 `webpack://` 前缀再拼 URL，或放弃自动下载改用 source-map-explorer 查看源码内容 |\n| JSFinder 报 python 依赖错误 | 缺 requests | `pip install requests` 后再跑 |\n\n#### 实战要点\n- map 文件通常和 JS 同名同目录，`main.xxx.js` → `main.xxx.js.map`，先试这个组合\n- 还原出的源码里，加密/签名函数是最高价值：理解了它就能构造合法请求体\n- 隐藏路由表 = 隐藏功能列表，找到后逐个访问，未授权功能常藏在这里\n- 前端源码泄漏在 SRC 中通常是低危，但它提供的接口与逻辑能让后续测试命中率翻倍\n- 别忘了对比 `.map` 里和线上实际的接口差异：源码里有而线上没有 = 下架接口，历史漏洞高发区"
+        }
+      ]
+    },
+    {
+      "id": "g-flow",
+      "name": "资产整理与攻击面",
+      "intro": "把收集结果变成一份能动手的地图",
+      "entries": [
+        {
+          "id": "flow-checklist",
+          "title": "信息收集 10 分钟清单",
+          "tags": [
+            "流程",
+            "checklist"
+          ],
+          "aliases": [],
+          "difficulty": "easy",
+          "summary": "面对全新目标时按序过一遍，保证不漏大类、不重复劳动。",
+          "content": "\n#### 这个条目的作用\n信息收集最容易犯的错是\"在单点上死磕\"：子域名扫到一半去挖目录，挖到一半又回头搞指纹，10 分钟过去啥都没收全。这条清单把收集过程切成 7 个大类，每个类固定预算时间，按序过完，保证拿到完整骨架，再决定深挖哪里。\n\n#### 前置条件\n- 目标域名或 IP 已确认\n- 本机已装：subfinder、dnsx、nmap、whatweb/wappalyzer、curl（清单时间小时钟）；没有就先跳过该步，用浏览器手工替代\n- 明确授权边界（SRC 测试仅限授权资产）\n\n#### 第 1 步：被动收集（2 分钟）\n不碰目标服务器，只看公开数据：Google dork（`site:example.com`）、GitHub 搜索（`example.com password`）、ICP 备案查询、证书透明度（`crt.sh`）。这条的价值是拿到**域名列表与真实 IP 线索**，为第 2 步准备输入。\n\n#### 第 2 步：子域名枚举（2 分钟）\n```bash\nsubfinder -d example.com -silent > subs.txt\n# 泛解析识别：随便解析一个不存在的子域，若返回 IP 说明存在泛解析，结果要剔除假子域\ndig random-nonexist.example.com +short\n# 存活验证\ncat subs.txt | dnsx -silent | tee live-subs.txt\n```\n预期结果：`live-subs.txt` 里是真实存活的子域名列表。有泛解析就用 `dnsx -resp` 对比 IP 过滤。\n\n#### 第 3 步：端口扫描（2 分钟）\n```bash\nnmap -T4 -sV -p- open ports  # 全端口太慢时退而求其次\n```\n实际用：先全端口扫高频段，再对开放端口做服务识别：\n```bash\nnmap -T4 -p- --min-rate 2000 target -oN ports.txt\nnmap -sV -p 22,80,443,3306,6379,8080,8888,9200,27017 target\n```\n预期结果：端口+服务+版本清单。对照常用端口服务表（3306=MySQL、6379=Redis、9200=Elasticsearch、27017=MongoDB）标记高危服务。\n\n#### 第 4 步：目录与备份探测（2 分钟）\n```bash\ncurl -s http://example.com/robots.txt\ncurl -s http://example.com/sitemap.xml\n# 备份与源码泄露探测\nfor f in /www.zip /backup.zip /web.zip /.git/config /index.php.bak /www.tar.gz; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com$f\"); echo \"$f -> $code\"\ndone\n```\n预期结果：robots/sitemap 给出官方认可的入口，备份与 `.git` 是源码泄露的快速探针。`/.git/config` 返回 200 是最严重的发现之一。\n\n#### 第 5 步：指纹识别（1 分钟）\n```bash\nwhatweb http://example.com | head -20\n```\n预期结果：框架/中间件/版本（如 `nginx` + `PHP 7.4` + `ThinkPHP 5`）。有了版本就回 g-finger 查 CVE 与默认路径。\n\n#### 第 6 步：JS 与接口（1 分钟）\n快速跑一遍 js-extract 的核心命令，或直接用浏览器 F12 → Network 看 XHR：\n```bash\ncurl -s http://example.com | grep -oP 'src=\"\\K[^\"]+\\.js' | sort -u\n```\n预期结果：一份接口/JS 粗清单。这一步只求\"知道有哪些\"，精读留给挑选入口之后。\n\n#### 第 7 步：汇总成资产表（1 分钟）\n把前面所有结果按子域分组，落成表格：子域 | IP | 端口 | 指纹 | 发现面板/接口 | 候选入口。这份表就是后续所有测试的地图。\n\n```txt\n示例资产表（按子域分组）：\n| 子域 | IP | 端口 | 指纹 | 候选入口 |\n| --- | --- | --- | --- | --- |\n| www   | 1.2.3.4 | 80,443 | nginx+PHP+ThinkPHP | /index.php?s=... RCE 链 |\n| api    | 1.2.3.4 | 443 | 自研 Node | /api/user/info 越权候选 |\n| admin  | 1.2.3.5 | 443 | Spring Boot | /actuator 未授权候选 |\n```\n\n> [!tip]\n> 前 10 分钟追求\"广度优先\"，把每个大类都过一遍拿到骨架，再挑最可疑的 2-3 个入口做深度测试；别在单个目标上死磕。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 子域名列表里有大量假目标 | 泛解析 | dig 随机子域确认，加 `-resp` 对比 IP，剔除与主域同 IP 的随机结果 |\n| 一个类别超时 | 想把它做到完美 | 设闹钟硬切：每类到点就停，进入下一类 |\n| 目录扫描请求过多被 WAF 拦 | 并发太高 | 降速（如 `ffuf -rate 10`），或先做被动收集、扫描放最后 |\n| 资产表互相矛盾（同 IP 标了两个指纹） | 端口对应不同服务 | 按域名+端口分开记录，指纹跟着\"域名:端口\"走 |\n| 10 分钟到但汇总没写完 | 前面某类超时 | 先写\"发现什么\"，细节回填；表格骨架永远优先 |\n\n#### 实战要点\n- 每类如果 1 分钟内没产出，记录\"未发现\"后直接跳过，不恋战\n- 候选入口永远列 2-3 个，不要只赌一个方向\n- 被动收集永远排最前：不触网就拿到域名与线索，是最安全的起步\n- 备份文件与 `.git` 只要状态码可疑就立刻验证内容，这类泄露一次就能定胜负\n- 清单是\"广撒网\"工具，深挖交给 recon-flow 决策树选出的入口"
+        },
+        {
+          "id": "recon-flow",
+          "title": "攻击面决策树",
+          "tags": [
+            "攻击面",
+            "决策"
+          ],
+          "aliases": [],
+          "difficulty": "medium",
+          "summary": "从收集结果到选定入口的判断逻辑，按资产类型分流测试路径。",
+          "content": "\n#### 这个条目的作用\n信息收集的终点是一堆数据：十几个子域、几十个端口、若干面板与接口。接下来往哪打？决策树把\"选入口\"变成一套固定的分流逻辑——按资产类型走不同测试路径，并且**永远先打低门槛入口**（默认口令、未授权、源码泄露），把爆破、越权这类高成本路径排在后面。照着树走，就不会拿着情报原地打转。\n\n#### 前置条件\n- flow-checklist 的 10 分钟清单已跑完，拥有资产表（子域/IP/端口/指纹）\n- 已明确授权范围，决策树选中路径后先确认该资产在授权清单内\n\n#### 第 1 步：先从资产表里挑出\"开放 Web 服务\"\n看资产表中哪些域名/IP 开放了 80/443/8080 等 Web 端口。**绝大多数测试从 Web 入口开始**，因为 Web 攻击面最大、工具最成熟。把非 Web 端口（3306/6379/22 等）单独列一行，等 Web 路径走完再回头处理。\n\n#### 第 2 步：按指纹分流 Web 服务\n对每个开放 Web 的目标，用第 1 步的指纹结果走分支：\n\n```txt\n目标资产\n├── 开放 Web 服务（80/443/8080）\n│   ├── CMS/框架指纹明确 ──> 查版本 CVE + 默认路径 + 后台弱口令\n│   ├── 自研业务系统 ──> JS 提取 API + 越权/注入测试\n│   ├── 管理面板（phpmyadmin/actuator/swagger）──> 直接验证未授权\n│   └── 备份/源码泄露 ──> 拉源码做白盒审计\n├── 只开放非 Web 端口\n│   ├── 数据库(3306/6379/27017) ──> 未授权/弱口令探测\n│   ├── SSH/RDP ──> 弱口令（有授权前提下）\n│   └── 中间件管理口(9200/8888/7001) ──> 未授权/默认口令\n├── CDN 后资产 ──> 找真实 IP：历史 DNS、证书日志、邮件头、子域直连\n└── 无直接入口 ──> 回到枚举：更多子域/旁站/历史页面/移动端 JS\n```\n\n- **指纹明确**（ThinkPHP、Laravel、WordPress）：直接查该版本 CVE，配 finger-default 的默认路径与后台弱口令\n- **自研系统**：无现成 CVE 可查，走 js-extract/js-burp-api 提取接口，然后越权与注入\n- **管理面板**（phpMyAdmin、actuator、Swagger）：先验证未授权，往往一测一个准\n- **备份/源码泄露**（`.git`、www.zip）：别急着打，先拉源码，白盒审计比黑盒快十倍\n\n#### 第 3 步：处理非 Web 端口\nWeb 路径没收获或想补广度时，看非 Web 端口：\n```bash\nnmap -sV -p 3306,6379,27017,9200,8888,7001 target\n```\n- **3306/6379/27017**（MySQL/Redis/MongoDB）：Redis 未授权、MySQL 弱口令是首选\n- **9200**（Elasticsearch）：未授权访问可直接拉全库\n- **8888**（宝塔）、**7001**（WebLogic）：管理面板/中间件，默认口令与未授权 CVE 高发\n- **SSH/RDP**：只在授权前提下做弱口令，且顺序永远排在最后（成本高、动静大）\n\n#### 第 4 步：CDN 后的资产先找真实 IP\n目标挂在 CDN 上时，扫到的全是 CDN 节点 IP，无效。先找真实源站 IP：历史 DNS 记录（`securitytrails`、`dnsdumpster`）、证书透明日志（crt.sh 里搜不含 CDN 的证书）、邮件头（`Received` 字段暴露发信服务器 IP）、子域直连（有些子域没上 CDN）。拿到真实 IP 后，绕 CDN 直连测试，同时可以用 `Host` 头重放域名请求。\n\n#### 第 5 步：无直接入口时回到枚举\n决策树走到底仍然没有入口的，别在死路上重复：回到信息收集扩面——更多子域、旁站（同 IP 其他站点）、历史页面（`web.archive.org`）、移动端/小程序端 JS。**入口往往不在当前目标上，而在它的\"旁边\"**。\n\n#### 第 6 步：给每个候选入口写一行\"为什么选它\"\n选好入口后立刻落文档：\n\n```txt\n候选入口：\n- http://admin.example.com/actuator —— 指纹 Spring Boot，actuator 未授权命中率高（来源：指纹+默认路径表）\n- http://api.example.com/api/user/info —— 自研系统 JS 暴露，ID 参数可疑越权（来源：js-extract）\n- 端口 6379 —— Redis 未授权特征（来源：nmap 全端口）\n```\n\n> [!tip]\n> 决策树的核心是\"先易后难\"：默认口令、未授权、源码泄露这类低门槛入口永远排在前面，爆破与越权这类高成本路径放后面。\n> 每个候选入口写一行标注\"为什么选它\"（指纹/端口/泄露源），方便复盘取证。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 在两个子域之间反复试 | 没有按资产表排序 | 回到资产表按\"低门槛优先\"排序，一次只测一个入口 |\n| 指纹识别失败导致分流不了 | 指纹表没匹配到 | 用响应头、报错页、favicon hash 补指纹；仍不明就按\"自研系统\"路径走 |\n| 扫 CDN IP 全是无效结果 | 目标挂 CDN | 先做第 4 步找真实 IP，别在 CDN 节点上浪费扫描 |\n| Redis/数据库端口扫不到 | 云安全组/防火墙只对特定 IP 开放 | 确认本机 IP 是否在放行列表；SRC 里通常这类端口本来就该封闭，记录即可 |\n| 深挖一个入口超过 30 分钟无进展 | 路径选错或目标难啃 | 暂停，换决策树另一分支；回头再看\"为什么选它\"是否站得住 |\n\n#### 实战要点\n- 决策树只在**入口选择**阶段用，选定后进入对应技能（指纹→CVE、自研→越权、面板→未授权）执行\n- 每条路径的优先级固定：未授权 ≈ 默认口令 > 源码泄露 > 注入/越权 > 爆破\n- 自研系统没有 CVE 可查，JS 接口提取就是它的\"指纹\"，先摸清 API 再动手\n- 发现面板/数据库未授权立即记录证据（时间、请求、响应），再决定停手上报或继续\n- 复盘时靠第 6 步的\"为什么选它\"还原测试思路，SRC 提交报告也直接引用"
+        }
+      ]
+    },
+    {
+      "id": "g-js-full",
+      "name": "JS 提取与分析知识体系",
+      "intro": "从零基础到能独立做题",
+      "entries": [
+        {
+          "id": "js-url-basics",
+          "title": "第 1 课：URL 与相对路径——搞清 `/static/js/app.js` 到底是什么",
+          "tags": [
+            "零基础",
+            "JS提取"
+          ],
+          "aliases": [
+            "js url",
+            "相对路径",
+            "绝对路径",
+            "JS在哪"
+          ],
+          "difficulty": "easy",
+          "summary": "零基础第一步：搞清浏览器地址栏、网页源码里的路径、你 curl 的地址三者关系，否则后面每一步都会卡在\"文件到底下载到哪\"。",
+          "content": "\n#### 这条要解决什么\n你现在只会\"打开网站\"。但在 JS 分析里，你必须能一眼看出 `/static/js/app.js` 的**完整真实地址**是什么。这事看着幼稚，却是 90% 新手第一步就翻车的地方——下载下来一堆写着 404 的 HTML 文件，还以为是目标做了防护。学完这条，你能把页面上任何一个 JS 变成电脑上的一个文件。\n\n#### 需要准备什么\n- 一台电脑 + 一个浏览器（Chrome / Edge 都行）\n- Windows 自带 PowerShell，或比赛用的 Kali 里的 bash\n- **完全零基础替代方案**：用浏览器 F12 就能做完这条全部步骤，不需要装任何东西\n\n#### 第 0 步：先在脑子里装好\"三种写法\"的概念\n假设目标网站首页是 `http://example.com/`。网页 HTML 里可能出现四种写法，它们指向的文件位置规则不同：\n\n| HTML 里看到的写法 | 类型 | 拼出来的真实地址 | 规则 |\n| --- | --- | --- | --- |\n| `src=\"/static/js/app.js\"` | 绝对路径 | `http://example.com/static/js/app.js` | 以 `/` 开头：从**域名根**接 |\n| `src=\"static/js/app.js\"` | 相对路径 | `http://example.com/static/js/app.js` | 不以 `/` 开头：从**当前页面所在目录**接 |\n| `src=\"../js/app.js\"` | 相对路径 | `http://example.com/js/app.js` | `..` 表示退一级目录 |\n| `src=\"https://cdn.x.com/a.js\"` | 完整 URL | `https://cdn.x.com/a.js` | 已经是全的，直接用 |\n\n> [!tip]\n> 记不住就用**作弊招**：F12 → Network → 刷新页面 → 找到那个 JS → 右键 `Copy` → `Copy URL`。浏览器已经帮你拼好了，100% 不会错。新手完全可以用这招做完前几道题，熟练了再回来看原理。\n\n#### 第 1 步：用浏览器把 JS 找出来\n打开目标首页 → 按 `F12` → 点 `Network`（网络）标签 → 按 `F5` 刷新页面 → 在过滤器框里输入 `.js`。\n\n你会看到一列 JS 文件。逐个点开，看 `Headers` 里的 `Request URL`，那就是完整地址。\n\n> [!warn]\n> 新手最常见的错误是**用「查看网页源代码」找 JS**。`Ctrl+U` 看到的源代码里可能一个 `<script>` 都没有——因为页面是 JS 动态生成的。**必须用 F12 的 Network 面板**，或者 Elements 面板（它显示的是 JS 执行后的最终 DOM）。\n\n#### 第 2 步：用命令行批量抓地址（进阶但更省力）\n打开终端（Windows 用 PowerShell），执行：\n\n```bash\ncurl -s http://example.com | grep -oP 'src=\"\\K[^\"]+\\.js'\n```\n\n命令逐字解释（零基础请对照着看）：\n- `curl -s http://example.com` —— 把首页 HTML 下载下来打印到屏幕，`-s` 表示不显示进度条\n- `|` —— 管道，把左边命令的输出**交给**右边命令处理\n- `grep -oP` —— 在文本里搜索，`-o` 只输出匹配到的部分，`-P` 用高级正则\n- `'src=\"\\K[^\"]+\\.js'` —— 找 `src=\"` 开头、跟着一串非引号字符、以 `.js` 结尾的内容；`\\K` 表示\"丢弃前面已匹配的部分\"，所以只打印文件名\n\n**预期结果**：\n\n```txt\n/static/js/chunk-vendors.js\n/static/js/app.js\n/js/config.js\n```\n\n**如果不行**：\n- 输出为空 → 目标可能用单引号，把 `\"` 换成 `'` 再试；或页面是框架渲染的，回第 1 步用浏览器\n- 报错 `grep: 无法识别的选项 --P` → 你在 cmd 里而不是 PowerShell；或换 `grep -oE`（简化正则）\n\n#### 第 3 步：把 JS 下载到本地\n按第 0 步的表把路径拼成完整 URL，然后下载：\n\n```bash\n# 显式写完整 URL 下载\ncurl -s http://example.com/static/js/app.js -o app.js\n\n# 立刻检查下到的是不是 JS\nhead -c 200 app.js\n```\n\n**预期结果**：`head -c 200` 打印出 `!function(e){var t={}...` 这种没格式的代码，说明下载成功了。这就是**压缩后的 JS**。\n\n**如果不行**：\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 内容是 `<!DOCTYPE html>` | 下到了 404 错误页 | 路径拼错了，回第 0 步重看相对/绝对路径 |\n| 文件 0 字节 | 需要特定 Referer/Cookie | 先用浏览器打开一次，`curl -H 'Cookie: xxx'` 带上 |\n| 提示 403 | 有防盗链或 WAF | 加 `-H 'User-Agent: Mozilla/5.0'` 伪装浏览器 |\n| 首页能开但下不到 JS | 用了 SPA 动态加载 | 回第 1 步用 Network 面板抓真实请求 |\n\n#### 第 4 步：一次下载全部 JS（批量）\n```bash\n# 1) 提取清单\ncurl -s http://example.com | grep -oP 'src=\"\\K[^\"]+\\.js' | sort -u > js-list.txt\n\n# 2) 建目录\nmkdir -p js && cd js\n\n# 3) 逐个下载（自动处理\"带域名\"和\"不带域名\"两种路径）\nwhile read -r u; do\n  case \"$u\" in\n    http*) url=\"$u\" ;;\n    *)     url=\"http://example.com$u\" ;;\n  esac\n  curl -s \"$url\" -o \"$(basename \"$u\")\"\ndone < ../js-list.txt\n\nls -la\n```\n\n**预期结果**：`js/` 目录里出现一堆 `.js` 文件，体积从几 KB 到几 MB 不等。\n\n#### 第 5 步：保留目录结构（避免同名文件互相覆盖）\n`basename` 会丢掉目录信息，`/admin/app.js` 和 `/user/app.js` 会都存成 `app.js` 互相覆盖。稳妥写法：\n\n```bash\nwhile read -r u; do\n  case \"$u\" in\n    http*) url=\"$u\"; f=\"${u#*://*/}\" ;;\n    *)     url=\"http://example.com$u\"; f=\"${u#/}\" ;;\n  esac\n  mkdir -p \"$(dirname \"$f\")\" 2>/dev/null\n  curl -s \"$url\" -o \"$f\"\ndone < js-list.txt\nfind . -name '*.js' -type f | head -20\n```\n\n**预期结果**：`static/js/app.js` 这类目录结构被保留。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 满屏 404 | 路径拼接方式搞错 | 一律优先用浏览器 `Copy URL` 拿完整地址 |\n| 下载的 JS 只有几行 | 是入口文件，真正的代码在它 `import` 的子文件里 | 看第 7 课的 webpack chunk |\n| 中文乱码 | 编码问题 | `curl --compressed`，或下载后另存为 UTF-8 |\n| 下到的文件都一样大 | 被同名覆盖了 | 用第 5 步的保留目录结构写法 |\n\n#### 实战要点\n- **先开 F12 再刷新**，养成习惯；Network 面板是你 90% 时间的落脚点\n- **`Copy as cURL` 是神器**：Network 里右键任意请求 → Copy → Copy as cURL，得到一条包含所有请求头的命令\n- **下载完先 `head -c 200`**，确认是 JS 不是错误页，别拿错误页分析半小时\n- 遇到 `app.8f3a2b.js` 这种带 hash 的文件名**要完整保留**——hash 变了说明版本变了"
+        },
+        {
+          "id": "js-via-devtools",
+          "title": "第 2 课：浏览器开发者工具——零基础的第一把武器",
+          "tags": [
+            "零基础",
+            "工具"
+          ],
+          "aliases": [
+            "devtools",
+            "F12",
+            "sources",
+            "断点",
+            "Network"
+          ],
+          "difficulty": "easy",
+          "summary": "不装任何工具，只用 F12 就能完成提取、美化、搜索、断点调试全过程。",
+          "content": "\n#### 这条要解决什么\n很多人以为挖 JS 必须装一堆工具。实际上浏览器自带的 DevTools 就是最强的 JS 分析器——它能美化代码、全局搜索、下断点、改返回值、监控网络。**新手完全可以用 F12 做完前三道题**。这条把 F12 里跟 JS 有关的五个面板讲透。\n\n#### 需要准备什么\n- Chrome / Edge / Firefox 任意现代浏览器\n- 一个能打开的目标（本地靶场、比赛环境，或你自己的测试站）\n\n#### 第 1 步：认识五个会用到的面板\n按 `F12`（或右键 → 检查），顶部一排标签，跟 JS 分析有关的只有五个：\n\n| 面板 | 中文 | 什么时候用 |\n| --- | --- | --- |\n| **Sources** | 源代码 | ⭐ 最重要。看 JS 源码、搜索字符串、下断点 |\n| **Network** | 网络 | 看页面加载了哪些 JS、哪些接口被调用 |\n| **Console** | 控制台 | 直接执行 JS 代码、看报错、打印变量 |\n| **Application** | 应用 | 看 Cookie、localStorage、sessionStorage |\n| **Elements** | 元素 | 看渲染后的 HTML，找隐藏表单与注释 |\n\n> [!tip]\n> 面板显示不全时，点标签栏最右边的 `»` 展开。\n\n#### 第 2 步：在 Sources 面板里找到目标 JS\n点 `Sources`，左侧是三级结构：\n\n```txt\nSources\n├── Page            ← 当前页面加载的所有资源（JS 在这里！）\n│   └── example.com\n│       └── static/js/\n│           ├── chunk-vendors.js     ← 第三方库\n│           └── app.js               ← 业务代码 ⭐ 重点看这个\n├── Filesystem      ← 可以在这里加载你本地的 JS 文件来读\n├── Overrides       ← 本地覆盖线上文件（改代码持久生效）\n└── Content scripts ← 浏览器插件的脚本（无关，跳过）\n```\n\n点开 `Page` → 域名 → 目录 → 找到 JS 点开，右侧显示代码。\n\n**如果不行**：`Page` 是空的 → 刷新页面；或 JS 从 CDN 加载，找 `https://cdn...` 节点。\n\n#### 第 3 步：一键美化压缩代码（必须掌握）\n压缩后的 JS 是一整行几十万字符，没法读。点开 JS 后，看编辑器**左下角有一个 `{}` 图标**，点它。\n\n```txt\n（美化前）\n!function(e){var t={};function n(r){if(t[r])return t[r].exports;...}\n\n（点 {} 后）\n!function(e) {\n    var t = {};\n    function n(r) {\n        if (t[r]) return t[r].exports;\n        ...\n    }\n}\n```\n\n> [!warn]\n> **美化只在浏览器里生效，不会修改服务器上的文件**。而且美化后的行号跟原始行号不一样，做笔记时两个都记一下。\n\n#### 第 4 步：全局搜索关键词（最高频动作）\n在 Sources 面板按 `Ctrl+Shift+F`（Mac 是 `Cmd+Option+F`），输入关键词：\n\n```txt\nflag\nadmin\npassword\ntoken\n/api/\nsecret\n```\n\n**预期结果**：左侧列出所有匹配位置，点一条跳到对应文件与行，右侧高亮显示。\n\n**如果不行**：\n- 搜不到 → 试大小写变体（`Flag`/`FLAG`）、下划线变体（`apiKey`/`api_key`/`API_KEY`）\n- 全是压缩代码碎片 → 先做第 3 步美化再搜\n- 完全没结果 → 关键词可能被混淆了，看第 8 课\n\n#### 第 5 步：在 Console 里直接跑代码\n点 `Console`，光标处直接输入 JavaScript 回车执行：\n\n```javascript\n// 打印页面标题\ndocument.title\n\n// 找出页面上所有链接\n[...document.querySelectorAll('a')].map(a => a.href)\n\n// 查看所有 Cookie\ndocument.cookie\n\n// 查看 localStorage 里存了什么（常藏 token）\nJSON.stringify(localStorage)\n\n// 直接调用页面里的函数（假设源码里有 checkPassword）\ncheckPassword(\"test\")\n```\n\n**预期结果**：立刻返回值。这是**验证你从源码里读到的逻辑是否正确**的最快方式。\n\n> [!danger]\n> Console 里执行的是**目标网站上下文**的代码，会影响页面状态甚至**向服务器发请求**。比赛环境里没问题；真实 SRC 环境里只做**读取类**操作（打印变量），不要执行修改数据的函数。\n\n#### 第 6 步：下断点看变量实际值（核心技能）\n断点 = \"让代码跑到这一行就暂停，让我看看现在变量是什么\"。\n\n**方法一：行断点**\n```txt\n1. Sources 面板打开目标 JS\n2. 点某一行左边的行号区域 → 出现蓝色标记 = 断点已下\n3. 触发该代码（比如点页面上的登录按钮）\n4. 页面暂停，右侧 Scope（作用域）面板显示当前所有变量的值\n5. 顶部控制按钮：\n   ▷  继续执行      F8\n   ⤵  单步跳过      F10（不进入函数内部）\n   ↓  单步进入      F11（进入函数内部）\n   ↑  跳出当前函数  Shift+F11\n```\n\n**方法二：事件断点（新手最好用）**\n右侧栏找 `Event Listener Breakpoints` → 展开 `Mouse` → 勾选 `click`。这样**任何点击**都会让代码暂停，不用知道该在哪行下断点。\n\n**方法三：XHR/fetch 断点（逆向加密参数的必备招）**\n勾选 `XHR/fetch` → 任何网络请求发送前都会暂停。在请求发出前拦下来，看参数是怎么算出来的。\n\n```txt\n三个断点场景速查：\n- 不知道按钮点了执行什么代码  → Event Listener Breakpoints → Mouse → click\n- 想知道加密参数怎么生成      → XHR/fetch 断点 + 单步进入\n- 想看某个变量的值            → 搜变量名 → 行断点 → 看 Scope 面板\n```\n\n#### 第 7 步：用 Network 面板看接口\n点 `Network` → 刷新 → 点 `Fetch/XHR` 过滤按钮。这里每条都是前端往后端要数据的请求。\n\n点开任意一条：\n- `Headers` → `Request URL` 是接口地址，`Request Method` 是方法\n- `Payload` / `Request` 是**发出去的参数**\n- `Response` / `Preview` 是**后端返回的数据**\n\n**预期结果**：看到一堆 `/api/user/info`、`/api/login` 这样的接口，参数名清清楚楚。\n\n> [!tip]\n> 右键任意请求 → `Copy` → `Copy as cURL`，得到一条包含所有请求头的完整命令。拿它去命令行重放改参数，比手工拼 URL 靠谱一万倍。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| `{}` 美化按钮是灰的 | 该文件已经是可读格式 | 不用美化，直接看 |\n| 搜不到中文 | 中文常被转义成 `\\uXXXX` | 搜转义形式，或用 `decodeURIComponent` 还原 |\n| 断点打不上（灰点） | 代码没加载到 | 刷新页面；或关掉 source map 看真实代码 |\n| 单步跳进一堆库代码 | 进入了 jQuery/Vue 内部 | `Shift+F11` 跳出，或对库文件右键 `Blackbox script` |\n| 刷新后断点全没了 | 页面重载的正常现象 | 用事件断点，或 Snippets 保存脚本 |\n\n#### 实战要点\n- **Blackbox script 是效率神器**：对 `chunk-vendors.js`、`jquery.min.js` 右键 `Blackbox`，单步时会直接跳过\n- **Sources → Overrides** 可以本地改写线上 JS 并持久生效，适合反复测试\"改了这段逻辑会怎样\"\n- **`Ctrl+Shift+F` 全局搜索**搜的是所有已加载资源，包括内联在 HTML 里的 `<script>`\n- 断点看到的**变量实际值永远比读代码猜的准**；读不懂就去下断点"
+        },
+        {
+          "id": "js-static-scan",
+          "title": "第 3 课：静态搜索——用命令行批量捞情报",
+          "tags": [
+            "核心",
+            "关键词"
+          ],
+          "aliases": [
+            "grep",
+            "敏感信息",
+            "接口提取",
+            "正则"
+          ],
+          "difficulty": "easy",
+          "summary": "把 JS 下载到本地后，用一组固定命令把所有接口、密钥、隐藏路径一次性捞出来。",
+          "content": "\n#### 这条要解决什么\n这是整组里**性价比最高的一条**：不需要懂 JS 语法，只要会复制粘贴命令，就能从几十个 JS 文件里捞出接口清单和泄露的密钥。很多 CTF 题目和真实 SRC 的突破口就在这一步。学完这条，你手上会有一份\"这个网站所有后端接口 + 所有可能的凭据\"的清单。\n\n#### 需要准备什么\n- 已经用第 1 课把 JS 下载到本地某个目录（比如 `js/`）\n- 终端支持 `grep -P`：Linux / macOS / WSL / Git Bash 都支持；**Windows 的 cmd 和 PowerShell 不支持**，请用 Git Bash 或 WSL\n- （可选）装了 ripgrep（`rg`），速度快很多，语法基本兼容\n\n#### 第 1 步：先确认目录里有东西\n```bash\ncd js\nfind . -name '*.js' -type f | wc -l\ndu -sh .\n```\n**预期结果**：打印文件数量和总大小，比如 `17` 和 `2.3M`。如果是 0，先回去下载。\n\n#### 第 2 步：捞接口路径（最核心的一步）\n```bash\n# ① 抓以 / 开头的路径字符串（接口通常长这样）\ngrep -rhoE '\"/[a-zA-Z0-9_./?=&-]{3,}\"' . | tr -d '\"' | sort -u > api-paths.txt\n\n# ② 抓完整 http(s) 地址（可能暴露内网/测试域名）\ngrep -rhoE 'https?://[a-zA-Z0-9._:/-]+' . | sort -u > urls.txt\n\n# ③ 抓常见接口前缀\ngrep -rhoE '/(api|admin|internal|debug|manage|user|v[0-9]+)/[a-zA-Z0-9_/-]*' . | sort -u >> api-paths.txt\n\nwc -l api-paths.txt urls.txt\n```\n\n命令解释：\n- `-r` 递归整个目录，`-h` 不显示文件名（输出更干净），`-o` 只输出匹配部分，`-E` 用扩展正则\n- `tr -d '\"'` 删掉引号\n- `sort -u` 排序去重\n- `> 文件` 把结果写入文件而不是打印到屏幕\n\n**预期结果**：`api-paths.txt` 里出现：\n\n```txt\n/api/user/info\n/api/login\n/api/upload\n/admin/list\n/internal/debug\n```\n\n**如果不行**：\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 结果全是 `.js`、`.css` | 正则太宽 | 加 `\\| grep -v '\\.\\(js\\|css\\|png\\|jpg\\|svg\\|woff\\)'` 过滤 |\n| 结果为空 | grep 版本不支持 | 换 Git Bash / WSL，或用 `rg '\"/[a-z]+' -o` |\n| 一行超长吃不下 | 文件没美化 | 先 `npx js-beautify` 美化再搜 |\n\n#### 第 3 步：捞敏感信息（密钥、口令、Token）\n```bash\ngrep -rniE '(api[_-]?key|apikey|secret|token|password|passwd|pwd|access[_-]?key|private[_-]?key|auth)' . \\\n  | grep -v node_modules | head -50\n```\n\n**预期结果**：\n\n```txt\nconfig.js:12:  const API_KEY = \"ak_live_9f3a2b8c...\";\napp.js:340:     headers: { 'X-Auth-Token': 'eyJhbGciOi...' }\n```\n\n> [!danger]\n> 拿到密钥不等于可以随便用。判断顺序：**① 这个 key 是干什么的（看变量名和上下文）→ ② 有没有可能在 CTF 里直接给 flag → ③ 在授权环境里最小化验证**。真实 SRC 环境里调用他人密钥可能违法，发现后应记录证据并上报，不要自行使用。\n\n#### 第 4 步：按已知格式精确匹配高价值凭据\n不同云厂商的密钥有固定前缀，可以精确匹配：\n\n```bash\ngrep -rnoE 'AKIA[0-9A-Z]{16}' .                    # AWS Access Key\ngrep -rnoE 'AIza[0-9A-Za-z_-]{35}' .               # Google API Key\ngrep -rnoE 'gh[pousr]_[A-Za-z0-9]{36,}' .          # GitHub Token\ngrep -rnoE 'xox[baprs]-[0-9A-Za-z-]{10,}' .        # Slack Token\ngrep -rnoE 'sk-[A-Za-z0-9]{20,}' .                 # OpenAI 等私有 key\ngrep -rnoE 'eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+' .   # JWT\n```\n\n**预期结果**：命中就是高价值发现。JWT 拿去 `jwt.io` 或本地 base64 解第二段（payload），常能直接读到用户名、角色、过期时间。\n\n#### 第 5 步：捞隐藏路径与隐藏功能\n```bash\n# 前端路由（Vue Router / React Router 里的路由表）\ngrep -rnoE \"path:\\s*['\\\"][^'\\\"]+['\\\"]\" . | head -40\n\n# 拼接出来的路径（常藏隐藏接口）\ngrep -rnoE \"['\\\"]/[a-z0-9_/-]+['\\\"]\\s*\\+\" . | head -40\n\n# 带 flag 字样的任何东西（CTF 特供）\ngrep -rniE 'flag|ctf|secret|hidden|backdoor' . | head -40\n```\n\n**预期结果**：`path: '/admin/secret'` 这类路由定义会暴露**页面上没有入口但真实存在**的页面。这是 CTF 最常见的拿 flag 方式之一。\n\n#### 第 6 步：整理成一份可读报告\n```bash\n{\n  echo \"=== 接口路径 ===\"; cat api-paths.txt\n  echo; echo \"=== 完整 URL ===\"; cat urls.txt\n  echo; echo \"=== 敏感关键词命中 ===\"\n  grep -rniE '(api[_-]?key|secret|token|password)' . | head -50\n} > js-recon-report.txt\n\nwc -l js-recon-report.txt\n```\n\n**预期结果**：一份 `js-recon-report.txt`，这就是你后续测试的**入口清单**。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| `grep: -P: 不支持` | macOS 或旧版 grep | 改用 `-E`，或 `brew install grep` 后用 `ggrep` |\n| 输出爆屏几万行 | 正则太宽 | 先加 `head -50` 看样本，再收紧正则 |\n| 结果里全是第三方库 | 没排除 vendor | 加 `--exclude=*vendor* --exclude=*chunk*` |\n| 明明有却搜不到 | 字符串被拼接成多段 | 搜片段而不是整串，如搜 `api` 而不是 `/api/user/info` |\n\n#### 实战要点\n- **接口路径 + 密钥 + 路由表**这三样捞完，JS 静态分析就算及格\n- **越不像接口的路径越要试**：`/api/debug/backup`、`/api/v1/internal/export` 这类往往是出题点\n- 很多题目把 flag 直接写在 JS 注释里：`grep -rniE '//.*flag|/\\*.*flag' .`\n- **把命令存成 `scan.sh`**，下次直接 `bash scan.sh js/`，一次投入长期复用\n- 找不到接口时回头检查：**登录后的页面 JS 下载了吗**？管理端和后端常不是同一份"
+        },
+        {
+          "id": "js-sourcemap-restore",
+          "title": "第 4 课：Source Map 还原原始源码——最省力的白盒",
+          "tags": [
+            "核心",
+            "SourceMap"
+          ],
+          "aliases": [
+            "sourcemap",
+            "源码还原",
+            "webpack",
+            "unwebpack"
+          ],
+          "difficulty": "easy",
+          "summary": "只要生产环境忘了删 `.map` 文件，你就能把整个前端工程还原成可读的原始源码。",
+          "content": "\n#### 这条要解决什么\nwebpack / Vite 打包后会生成一个 `.map` 文件，用来把压缩代码映射回原始源码。它的设计目的是\"线上报错时能定位到源码第几行\"，所以**里面通常内嵌了完整原始代码**。如果开发忘了在生产环境删掉它，你等于拿到了整个前端工程——变量名有意义、注释还在、目录结构清晰。这是 JS 分析里投入产出比最高的一击。\n\n#### 需要准备什么\n- 至少一个 JS 的完整 URL（见第 1 课）\n- `node` / `npx` 可用（用于调用还原工具）\n- 一个终端\n\n#### 第 1 步：检查 JS 末尾有没有 sourceMappingURL\n打包工具会在文件最后一行留一个注释指向 map：\n\n```bash\ncurl -s http://example.com/static/js/app.js | tail -3\n# 或直接搜\ncurl -s http://example.com/static/js/app.js | grep -i 'sourceMappingURL'\n```\n\n**预期结果**：输出里出现下面之一：\n\n```javascript\n//# sourceMappingURL=app.js.map\n/*# sourceMappingURL=app.8f3a2b.js.map */\n```\n\n**如果不行**：没有任何输出 → 这个文件没带 map，换其他 JS 试（体积大的主包通常带），或试第 2 步的猜路径。\n\n> [!tip]\n> 有些站点 JS 里没有 `sourceMappingURL`，但 map 文件**仍然存在于服务器上**——只是没人引用它。直接猜路径就能下到。\n\n#### 第 2 步：拼出 map 的真实地址\n`sourceMappingURL` 的值是**相对于当前 JS 文件**的路径：\n\n```bash\n# 假设 JS 在 http://example.com/static/js/app.8f3a2b.js\n# 注释是 //# sourceMappingURL=app.8f3a2b.js.map\n# 则 map 在：http://example.com/static/js/app.8f3a2b.js.map\n\ncurl -s -o /dev/null -w \"%{http_code} %{content_type}\\n\" \\\n  http://example.com/static/js/app.8f3a2b.js.map\n```\n\n**预期结果**：`200 application/json` —— map 存在，继续。\n\n**如果不行，按顺序试这些路径变体**：\n\n```bash\nfor p in \\\n  \"static/js/app.8f3a2b.js.map\" \\\n  \"static/js/app.js.map\" \\\n  \"static/js/main.js.map\" \\\n  \"js/app.js.map\" \\\n  \"app.js.map\" \\\n  \"static/js/chunk-vendors.js.map\" ; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com/$p\")\n  echo \"$code  $p\"\ndone\n```\n\n> [!warn]\n> 返回 200 但内容是 HTML 是常见坑——框架把所有 404 都兜底成 200 页面了。**必须看内容开头是不是 `{`**：\n> ```bash\n> curl -s http://example.com/x.js.map | head -c 100\n> ```\n\n#### 第 3 步：看 map 里有哪些原始文件\nmap 是 JSON，`sources` 字段就是原始文件路径列表：\n\n```bash\ncurl -s http://example.com/static/js/app.8f3a2b.js.map -o app.js.map\nnode -e \"\nconst m = require('./app.js.map');\nconsole.log('原始文件数:', m.sources.length);\nconsole.log('是否内嵌源码:', !!m.sourcesContent);\nm.sources.slice(0, 30).forEach(s => console.log('  ' + s));\n\"\n```\n\n**预期结果**：\n\n```txt\n原始文件数: 42\n是否内嵌源码: true\n  webpack:///./src/main.js\n  webpack:///./src/App.vue\n  webpack:///./src/api/request.js\n  webpack:///./src/utils/crypto.js\n```\n\n**如果不行**：\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| `require` 报 JSON 解析错误 | 文件不是合法 JSON（被 gzip 压过） | `curl --compressed` 重新下载；或 `head -c 100` 看真实内容 |\n| `sourcesContent` 是 null | 打包时配置了不内嵌源码 | 只能拿文件名列表，源码按路径回源下载（第 4 步情况 B） |\n\n#### 第 4 步：还原源码（两种情况）\n**情况 A：`sourcesContent` 有内容（最好）** —— 源码就内嵌在 map 里，直接导出：\n\n```bash\nnode -e \"\nconst fs = require('fs'), path = require('path');\nconst m = require('./app.js.map');\nm.sources.forEach((s, i) => {\n  const code = m.sourcesContent[i];\n  if (!code) return;\n  // webpack:///./src/api/request.js  ->  src/api/request.js\n  const clean = s.replace(/^webpack:\\/\\/\\/?\\.?\\/?/, '').replace(/^\\.\\//, '');\n  const out = path.join('src', clean);\n  fs.mkdirSync(path.dirname(out), { recursive: true });\n  fs.writeFileSync(out, code);\n});\nconsole.log('还原完成');\n\"\nfind src -type f | head -30\n```\n\n**预期结果**：`src/` 目录里出现完整的前端工程源码，目录结构清晰。\n\n**情况 B：`sourcesContent` 为空** —— 只能按文件路径逐个回源下载（成功率低，很多路径服务器上并没有）：\n\n```bash\nnode -e \"console.log(require('./app.js.map').sources.join('\\n'))\" > sources.txt\nmkdir -p src && cd src\nwhile read -r s; do\n  f=\"${s#webpack:///}\"; f=\"${f#./}\"\n  mkdir -p \"$(dirname \"$f\")\"\n  curl -s \"http://example.com/$f\" -o \"$f\"\ndone < ../sources.txt\ngrep -rl 'DOCTYPE html' . | head   # 检查哪些其实是错误页\n```\n\n#### 第 5 步：用现成工具一键还原（推荐）\n手写脚本方便理解，实际比赛用工具更快：\n\n```bash\n# 方案一：unwebpack-sourcemap（最省事，直接产出源码目录）\nnpx unwebpack-sourcemap -o recovered ./app.js.map\n\n# 方案二：restore-source-tree\nnpx restore-source-tree -o recovered ./app.js.map\n\n# 方案三：source-map-explorer（可视化各文件体积占比，快速定位主逻辑）\nnpx source-map-explorer ./app.js\n```\n\n**预期结果**：`recovered/` 目录直接就是可读的源码树。\n\n**如果不行**：npx 下载慢/失败 → 赛前提前 `npx xxx --help` 跑一次把包缓存好；或直接从浏览器打开 map 文件复制 `sourcesContent` 手工粘贴。\n\n#### 第 6 步：还原后先看这五个地方（按优先级）\n不要从头读到尾，定点看：\n\n```bash\ncd recovered/src 2>/dev/null || cd src\n\n# ① 加密 / 签名逻辑（改包测试的钥匙）\ngrep -rniE 'encrypt|decrypt|sign|aes|rsa|md5|hmac|crypto' . | head -30\n\n# ② 鉴权与路由守卫（找越权与前端鉴权绕过）\ngrep -rniE 'auth|token|guard|permission|role|isAdmin' . | head -30\n\n# ③ 路由表（找隐藏页面）\ngrep -rniE \"path:\\s*['\\\"]\" . | head -40\n\n# ④ 接口封装（一次看清所有 API 和参数）\nfind . -path '*api*' -o -name 'request*' | head\nhead -60 api/request.js 2>/dev/null\n\n# ⑤ 硬编码的内网地址与凭据\ngrep -rniE '10\\.[0-9]+\\.[0-9]+\\.[0-9]+|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.' .\ngrep -rniE 'password|secret|apikey|api_key' .\n```\n\n**预期结果**：五个方向至少有一个能出东西。最高价值通常是 **① 加密签名逻辑** 和 **③ 路由表**。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| map 下载后是乱码 | gzip 未解 | `curl --compressed` |\n| `sources` 全是 `webpack://` 路径 | webpack 默认输出格式 | 剥离前缀即可，脚本已处理 |\n| 还原出的是编译后 Vue/React 产物 | 项目没配 `devtool: source-map` | 只能读压缩代码逻辑，走第 8 课 |\n| 工具报错 | 版本或 map 格式不兼容 | 换别的工具，或用第 4 步手写脚本 |\n| map 有几百 MB | 全量内嵌源码 | 用 `node -e` 只导出 `.js`/`.ts`，跳过 node_modules |\n\n#### 实战要点\n- **先试 `.map` 再谈反混淆**：花 30 秒探测，可能省掉 3 小时手工解混淆\n- `sourcesContent` **就是原始工程**，包括被摇树优化掉、线上根本没执行的代码分支\n- 对比\"源码里有而线上接口没有\"的接口 = **下架接口/历史漏洞高发区**\n- 线上 JS 与 map 版本必须对应（文件名 hash 一致），否则映射错位\n- 有站点把 map 放在 CDN 或另一域名上：看 `sources` 里的路径有没有带域名前缀"
+        },
+        {
+          "id": "js-api-extract",
+          "title": "第 5 课：从 JS 到接口清单——把后端全挖出来",
+          "tags": [
+            "核心",
+            "接口提取"
+          ],
+          "aliases": [
+            "API",
+            "接口",
+            "参数",
+            "JSFinder"
+          ],
+          "difficulty": "easy",
+          "summary": "把 JS 里出现的接口路径变成一份带方法、参数、用途的可测试清单，这是 JS 分析的最终交付物。",
+          "content": "\n#### 这条要解决什么\n前面是\"原材料处理\"，这条是\"成品交付\"。JS 分析的终点不是读完代码，而是产出一份**能直接拿去测试的接口清单**。这条教三件事：怎么从 JS 里挖接口、怎么确定接口的方法和参数、怎么把清单整理成后续测试能用的格式。\n\n#### 需要准备什么\n- 已完成第 3 课（本地有 JS 和一个初版 `api-paths.txt`）\n- 目标站点可访问，浏览器 F12 可用\n- （可选）Burp Suite Community 版或浏览器代理插件\n\n#### 第 1 步：从多个来源收集候选接口\n单一来源一定会漏，把四路结果合并：\n\n```bash\nmkdir -p out\n\n# 来源 1：静态搜索 JS 里的路径字符串\ngrep -rhoE '\"/[a-zA-Z0-9_./?=&-]{4,}\"' js/ | tr -d '\"' \\\n  | grep -vE '\\.(js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|ico|map)$' \\\n  | sort -u > out/candidates.txt\n\n# 来源 2：source map 还原出的源码（如果有）\n[ -d src ] && grep -rhoE \"['\\\"]/[a-zA-Z0-9_./?=&-]{4,}['\\\"]\" src/ | tr -d \"\\\"'\" \\\n  | sort -u >> out/candidates.txt\n\n# 来源 3：页面 HTML 的内联脚本\ncurl -s http://example.com | grep -oE '<script>.*</script>' \\\n  | grep -oE '\"/[a-zA-Z0-9_./?=&-]{4,}\"' | tr -d '\"' >> out/candidates.txt\n\n# 来源 4：robots / sitemap 给的路径\ncurl -s http://example.com/robots.txt | grep -iE '^(allow|disallow)' | awk '{print $2}' >> out/candidates.txt\n\nsort -u out/candidates.txt -o out/candidates.txt\nwc -l out/candidates.txt\n```\n\n**预期结果**：`out/candidates.txt` 里有几十到几百条候选路径。\n\n#### 第 2 步：关键一步——前缀归并还原出接口模板\n静态抓到的往往是 `/api/user/1`、`/api/user/2` 这种带具体 ID 的实例。要把它们归并成模板 `/api/user/{id}`，才看得出接口全貌：\n\n```bash\nsed -E 's#/[0-9]+#/{id}#g; s#/[a-f0-9]{16,}#/{hash}#g' out/candidates.txt \\\n  | sort -u > out/templates.txt\nhead -50 out/templates.txt\n```\n\n**预期结果**：\n\n```txt\n/api/user/{id}\n/api/user/{id}/profile\n/api/order/{id}/detail\n/api/admin/list\n/api/upload\n```\n\n> [!tip]\n> **`/api/admin/list` 这种带 admin 的路径优先测**——前端普通用户界面里出现的 admin 接口，八成是没做权限校验（前端藏了但后端没收）。\n\n#### 第 3 步：给每个接口补上\"方法\"和\"参数\"\n静态搜索只能拿到路径，**方法和参数必须看实际请求**。两招：\n\n**招数 A：手动触发 + Network 抓包**\nF12 → Network → 勾选 `Fetch/XHR` → 把网站**每个功能都用一遍**（登录、搜索、翻页、提交、上传、导出）。每个操作产生一条请求，点开看 `Request Method` 和 `Payload`。\n\n**招数 B：从源码里读调用代码（更快）**\n```bash\ngrep -rnE \"(axios|fetch|\\\\\\$\\.(ajax|post|get))\\s*\\(\" src/ 2>/dev/null | head -40\ngrep -rnoE \"(get|post|put|delete)\\s*\\(\\s*['\\\"]/[^'\\\"]+\" src/ 2>/dev/null | head -40\n```\n\n**预期结果**：看到 `axios.post('/api/login', {username, password})` 这样的代码——**方法、路径、参数名一次全拿到**。\n\n#### 第 4 步：用自动化工具批量提取（JSFinder）\n```bash\ngit clone https://github.com/Threezh1/JSFinder.git\ncd JSFinder && pip install requests\npython3 JSFinder.py -u http://example.com            # 基础扫描\npython3 JSFinder.py -u http://example.com -d         # 深度爬取（跟着页面链接递归）\npython3 JSFinder.py -f urls.txt -ou out.txt          # 批量目标\n```\n\n**如果不行**：`pip install requests` 失败 → 用虚拟环境 `python3 -m venv v && ./v/bin/pip install requests`。工具跑不通就用第 1、3 步的手工方案，**手工和工具产出一致，别卡在工具上**。\n\n#### 第 5 步：整理成可测试的清单（交付物）\n用固定格式落表，后续测试直接照着填：\n\n```txt\n| 接口 | 方法 | 参数 | 来源 | 状态 | 备注 |\n| --- | --- | --- | --- | --- | --- |\n| /api/login | POST | username, password | app.js:120 | 200 | 登录入口，可测爆破/注入 |\n| /api/user/{id} | GET | - | request.js:44 | 200 | ⭐ ID 可替换，测水平越权 |\n| /api/admin/list | GET | page, size | app.js:310 | 403 | ⭐ 有权限校验，测绕过 |\n| /api/upload | POST | file | upload.js:8 | 200 | 测任意文件上传 |\n| /api/internal/debug | GET | - | sourcemap | 404 | 前端有后端可能下架，对比测试 |\n```\n\n> [!danger]\n> **测试阶段必须先确认授权范围**。CTF 比赛环境随便打；真实 SRC 只有授权资产能测，且**越权测试要用自己的两个账号互测，不要拿真实用户数据**。发现漏洞立即停止扩大影响并上报。\n\n#### 第 6 步：用清单反查——找\"前端有后端无\"和\"前端无后端有\"\n这是最容易被忽略的高价值步骤：\n\n```bash\nwhile read -r p; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" \"http://example.com$p\")\n  [ \"$code\" != \"404\" ] && echo \"$code  $p\"\ndone < out/templates.txt\n```\n\n```txt\n三类结果的含义：\n200      —— 可直接访问，看返回内容判断是否泄露数据\n401/403  —— 存在但需要权限 ⭐ 越权绕过的主要目标\n405      —— 存在但方法不对，换 GET↔POST 再试\n400      —— 存在但参数缺失，说明接口有效，补参数试 ⭐\n404      —— 前端残留、后端已下架（历史接口，可能有旧版漏洞）\n```\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 候选几百条，实际接口没几条 | 正则混入静态资源路径 | 用后缀过滤 + 前缀归并收紧 |\n| 路径对但一直 404 | 少了统一前缀（`/api/v1`）或需要特定 Header | 用 Copy as cURL 对比真实请求 |\n| 点了功能但 Network 看不到请求 | 走了 WebSocket 或已缓存 | 勾选 `WS` 过滤；或无痕模式禁用缓存 |\n| 接口返回加密数据看不懂 | 前端有解密逻辑 | 回第 4 课找 decrypt 函数，或下断点看解密后值 |\n| JSFinder 跑出一堆外站域名 | 它把 CDN/统计域名也算进去了 | 按域名过滤，只留目标域及子域 |\n\n#### 实战要点\n- **接口清单的\"来源\"列一定要写**：来自哪个文件哪一行，复盘和写报告时能直接引用\n- **参数名比路径更值钱**：知道 `/api/order` 不如知道它收 `orderId`，因为后者能构造越权\n- 前后端分离站点，**JS 就是最完整的接口文档**——比 Swagger 还全，因为它是线上真实在跑的\n- 把清单交给后续测试：`ID 可替换 → 越权`、`有 file 参数 → 上传`、`有 url 参数 → SSRF`、`有 query 参数 → 注入`\n- **登录前后各抓一遍**：登录后才加载的 JS（管理端、个人中心）藏着权限更高的接口"
+        },
+        {
+          "id": "js-beautify-deobf",
+          "title": "第 6 课：代码美化与混淆识别——把天书变回代码",
+          "tags": [
+            "核心",
+            "解混淆"
+          ],
+          "aliases": [
+            "beautify",
+            "混淆",
+            "obfuscator",
+            "eval"
+          ],
+          "difficulty": "medium",
+          "summary": "认识六种常见混淆形态，并知道每种该用什么工具和方法还原可读性。",
+          "content": "\n#### 这条要解决什么\n压缩（minify）和混淆（obfuscate）是两件事：压缩只是删空格改短名，**逻辑还在**；混淆则故意把逻辑藏起来（字符串加密、控制流打乱、`eval` 动态执行）。这条教你**先判断手上是哪种**，再选对方法，避免拿着一份加密字符串数组硬猜三小时。\n\n#### 需要准备什么\n- 已下载下来可疑的 JS 文件\n- `node` / `npx` 可用\n- 一个能打开大文件的编辑器（VS Code 最佳）\n\n#### 第 1 步：先判断是\"压缩\"还是\"混淆\"\n看文件开头和整体形态：\n\n```bash\nhead -c 300 target.js; echo; echo \"---\"; wc -c target.js; wc -l target.js\n```\n\n| 观察到的形态 | 类型 | 难度 | 对应打法 |\n| --- | --- | --- | --- |\n| 一整行、变量名是 `e,t,n,r` | **压缩** | ⭐ | js-beautify 一键搞定 |\n| 开头是 `!function(e,t){...}(this,function(){...})` | **UMD 打包** | ⭐ | beautify 后读 |\n| 有 `eval(function(p,a,c,k,e,d){...})` | **packer 打包** | ⭐⭐ | 替换 eval 后执行 |\n| 有 `_0x4f2a` 变量 + 一个大字符串数组 | **obfuscator 混淆** | ⭐⭐⭐ | 专用工具 + 手工 |\n| 全是 `\\x68\\x65\\x6c\\x6c\\x6f` 十六进制 | **十六进制转义** | ⭐ | node 一行还原 |\n| 只看得到 `atob(` 或 Base64 长串 | **Base64 编码** | ⭐ | node 一行还原 |\n| 大量 `while(true){switch(...)}` | **控制流平坦化** | ⭐⭐⭐⭐ | 动态调试最快 |\n\n#### 第 2 步：压缩代码 —— js-beautify 一键美化\n```bash\n# 单文件\nnpx js-beautify target.js -o target.beauty.js\n\n# 批量整个目录\nfor f in js/*.js; do npx js-beautify \"$f\" -o \"${f%.js}.beauty.js\"; done\n\n# 带缩进和换行配置（-s 两空格缩进，-w 每行最多 120 字符）\nnpx js-beautify -s 2 -w 120 target.js -o target.beauty.js\n```\n\n**如果不行**：npx 慢/无网 → VS Code 打开文件按 `Shift+Alt+F` 格式化；或浏览器 F12 Sources 的 `{}` 按钮。\n\n#### 第 3 步：Base64 / 十六进制 / URL 编码 —— node 一行还原\n```bash\nnode -e \"console.log(Buffer.from('aGVsbG8=', 'base64').toString())\"    # Base64\nnode -e \"console.log(String.fromCharCode(104,101,108,108,111))\"       # 十进制字符码\nnode -e \"console.log('\\u0068\\u0065\\u006c\\u006c\\u006f')\"               # Unicode 转义\nnode -e \"console.log(decodeURIComponent('%68%65%6c%6c%6f'))\"          # URL 编码\n```\n\n**实战简化版**：把整个 JS 里的 `\\xNN` 和 `\\uNNNN` 全部还原：\n\n```bash\nnode -e \"\nconst fs=require('fs');\nlet s=fs.readFileSync('target.js','utf8');\ns=s.replace(/\\\\\\\\x([0-9a-fA-F]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));\ns=s.replace(/\\\\\\\\u([0-9a-fA-F]{4})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));\nfs.writeFileSync('target.decoded.js',s);\nconsole.log('还原完成');\n\"\ngrep -oE '[a-zA-Z0-9_]{6,}' target.decoded.js | sort -u | head -30\n```\n\n**预期结果**：原本看不懂的转义串变成可读字符串，**往往直接出现 flag 或接口路径**。\n\n#### 第 4 步：Packer（`eval(function(p,a,c,k,e,d)`）—— 经典壳\n这种是 Dean Edwards Packer 打的包，特征是开头有 `eval(function(p,a,c,k,e,d)`。**它自带解密函数**，最省力的解法是让 JS 引擎自己跑：\n\n```bash\n# 把 eval 换成 console.log，让 node 执行并打印明文\nnode -e \"\nconst fs=require('fs');\nlet s=fs.readFileSync('packed.js','utf8');\ns=s.replace(/eval\\(function\\(p,a,c,k,e,[dr]\\)/, 'console.log(function(p,a,c,k,e,d)');\nfs.writeFileSync('unpacked.js',s);\n\"\nnode unpacked.js > unpacked.out.js 2>/dev/null\nhead -c 500 unpacked.out.js\n```\n\n```bash\n# 或者用现成工具\nnpx deobfuscator target.js -o clean.js\n```\n\n**如果不行**：正则匹配不上 → 用编辑器手工把 `eval(` 改成 `console.log(`，注意**括号要配平**（在 `eval(` 前加 `console.log`，不删原括号）。\n\n> [!warn]\n> **绝对不要在本地直接 `node packed.js`**。混淆代码常见反调试和恶意载荷（挖矿、反弹 shell）。一律先在**虚拟机/容器**里跑，且优先用\"静态替换 eval\"的方式而不是执行原文件。\n\n#### 第 5 步：obfuscator.io 字符串数组型 —— 用专用工具\n特征是文件头部有一个巨大字符串数组 + 一堆 `_0x` 开头的函数，代码里到处是 `_0x1a2b(0x3c)` 这种调用。\n\n```bash\nnpx webcrack target.js -o ./out --unpack --deobfuscate   # 现代打包+混淆通吃，推荐\nnpx synchrony target.js -o clean.js                      # 专治 obfuscator.io 字符串数组\nnpx deobfuscator target.js -o clean.js                   # 通用，先试这个\n```\n\n**预期结果**：`_0x1a2b(0x3c)` 变成可读字符串或函数调用，逻辑浮出水面。\n\n**如果不行**：工具报错 → 退回**动态方案**：这种混淆**运行时**一定会在内存里解密成明文。用 F12 下断点，在解密函数末尾断下，把 Scope 里的变量值抄出来（详见第 7 课）。\n\n#### 第 6 步：控制流平坦化 —— 动态调试比静态更快\n`while(true){switch(state){case 0: ...; state=3; break; ...}}` 这种把线性逻辑打散成状态机的混淆，静态还原非常痛苦，**直接放弃静态、改用动态**：\n\n```javascript\n// 在 Console 里对关键函数做包装，打印每次调用的参数与返回值\nconst _orig = window.checkPassword;\nwindow.checkPassword = function(...args) {\n  console.log('[调用] 参数 =', args);\n  const r = _orig.apply(this, args);\n  console.log('[返回] =', r);\n  return r;\n};\n// 然后照常操作页面，控制台会打印出真实输入输出\n```\n\n**预期结果**：不用读懂混淆代码，直接看到**输入 → 输出**，反推出逻辑。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| beautify 后还是一团乱 | 是混淆不是压缩 | 走第 4、5 步的专用工具 |\n| `npx` 报包不存在 | 包名记错 | `npm search deobfuscator` 确认，或换 webcrack |\n| 工具输出还是 `_0x` 变量 | 该混淆变体工具不支持 | 用动态调试法（第 6 步） |\n| 替换 eval 后 node 报语法错 | 括号没配平，或代码里有多个 eval | 用编辑器核对括号，逐个处理 |\n| 解密后的字符串是乱码 | 加了 XOR/自定义加密 | 找到解密函数用 node 复现（见第 8 课） |\n\n#### 实战要点\n- **先分类再动手**（第 1 步的表），分类错了会浪费大量时间\n- **优先级：有 source map > 直接读 > beautify > 专用工具 > 动态调试**\n- 混淆再狠也拦不住动态调试：**代码总要算出一个结果**，下断点看结果就行\n- **把解密后的代码存一份**（`target.clean.js`），后续搜关键词都在解密版上搜\n- 混淆代码里的 `\\x` 转义最省力：一条 node 命令全文还原，常常直接出 flag"
+        },
+        {
+          "id": "js-crypto-reverse",
+          "title": "第 7 课：JS 逆向加密与签名——看懂前端怎么算参数",
+          "tags": [
+            "核心",
+            "加密逆向"
+          ],
+          "aliases": [
+            "加密",
+            "签名",
+            "sign",
+            "AES",
+            "RSA",
+            "MD5"
+          ],
+          "difficulty": "medium",
+          "summary": "定位前端的加密/签名函数，理解其输入输出，从而构造出后端认可的合法请求。",
+          "content": "\n#### 这条要解决什么\n很多题目（和很多真实系统）会给请求加一道\"签名\"：参数不是明文发出去的，而是经过 `sign = md5(参数+时间戳+密钥)` 之类的计算。**你直接改包重放会被服务器拒绝**，因为签名对不上。这条教你：怎么找到加密函数、怎么搞清它的输入输出、怎么在本地用 Python/Node 复现同样的算法，从而能随意伪造合法请求。\n\n#### 需要准备什么\n- 已能用 F12 和静态搜索定位代码（第 2、3 课）\n- Python3 或 Node 环境（用于本地复现算法）\n\n#### 第 1 步：先确认\"确实有签名\"——观察现象\n不要一上来就找算法，先确认它存在：\n\n```txt\n现象一：请求参数里有可疑字段\n  {\"username\":\"admin\",\"password\":\"123\",\"timestamp\":1712345678,\"sign\":\"a1b2c3...\"}\n  → sign / _sign / signature / token / nonce 这类字段就是签名\n\n现象二：改一个参数值，服务器报\"签名错误 / 非法请求\"\n  → 确认无疑\n\n现象三：参数整体是一串 Base64 或十六进制乱码\n  → 请求体整体加密\n```\n\n用 F12 Network 面板点开任意 POST 请求，看 `Payload` 里有没有上述字段。\n\n#### 第 2 步：静态搜索加密相关关键词\n```bash\ngrep -rniE 'md5|sha1|sha256|hmac|aes|des|rsa|crypto|encrypt|decrypt|sign|base64' js/ | head -40\n```\n\n**预期结果**：定位到几个可疑文件，如 `utils/crypto.js`、`static/js/app.js:1203`。\n\n#### 第 3 步：从请求参数名反查调用点（最直接）\n知道参数名 `sign`，就在 JS 里搜：\n\n```bash\ngrep -rn 'sign' js/ | grep -iE 'md5|sha|hmac|encrypt' | head -20\ngrep -rnE 'sign\\s*[:=]' js/ | head -20\n```\n\n**预期结果**：找到类似\n\n```javascript\nvar sign = md5(username + password + timestamp + \"s3cr3t_k3y\");\n```\n\n或者更复杂的按 key 排序拼接：\n\n```javascript\nfunction makeSign(params) {\n  var keys = Object.keys(params).sort();\n  var str = keys.map(k => k + '=' + params[k]).join('&');\n  return md5(str + '&key=' + SECRET);\n}\n```\n\n#### 第 4 步：动态断点确认（静态读不懂就用这招）\n在 Network 面板用 **XHR/fetch 断点**，或直接在加密函数名上打行断点，然后触发请求：\n\n```txt\n操作流程：\n1. F12 → Sources → 搜 md5 或 encrypt → 在函数第一行打断点\n2. 回页面点\"登录\"或触发请求\n3. 代码暂停，右侧面板：\n   - Scope 里看当前所有变量的值\n   - Call Stack 从下往上是调用链，能看出谁调用了加密函数\n4. 在 Console 里直接调用：md5(\"test\") 立刻看到输出\n5. F10 单步执行，看每一步变量怎么变\n```\n\n**预期结果**：你手上有了**一组真实的输入输出对**，比如 `md5(\"admin1231712345678s3cr3t_k3y\") = \"a1b2c3...\"`。这是后面复现算法的**验证基准**。\n\n#### 第 5 步：在本地复现算法（关键一步）\n用 Python 写脚本复现，并用第 4 步的真实值验证：\n\n```python\n# verify_sign.py —— 复现并验证\nimport hashlib\n\nSECRET = \"s3cr3t_k3y\"          # 从 JS 里抄来的硬编码密钥\nusername, password, ts = \"admin\", \"123\", 1712345678\n\n# 按 JS 里的拼接顺序照抄（顺序错了结果就全错）\ns = f\"{username}{password}{ts}{SECRET}\"\nlocal = hashlib.md5(s.encode()).hexdigest()\n\nbrowser = \"a1b2c3...\"          # 第 4 步从断点里抄到的真实值\nprint(\"本地计算:\", local)\nprint(\"浏览器值:\", browser)\nassert local == browser, \"❌ 算法没复现对，检查拼接顺序/编码/大小写\"\nprint(\"✅ 复现成功，可以随意构造合法请求了\")\n```\n\n```javascript\n// 或者用 Node 复现（如果原代码用了 crypto-js 等库）\nconst CryptoJS = require('crypto-js');\nconst SECRET = \"s3cr3t_k3y\";\nconst s = \"admin\" + \"123\" + 1712345678 + SECRET;\nconsole.log(CryptoJS.MD5(s).toString());\n```\n\n> [!tip]\n> **必须让 `assert` 通过再往下走**。签名算法里任何一个细节（拼接顺序、是否大写、编码方式、有没有加盐）不同，结果就完全不同。用真实值验证是唯一可靠的办法。\n\n#### 第 6 步：把复现好的算法接到请求里\n```python\nimport requests, hashlib, time\n\nSECRET = \"s3cr3t_k3y\"\nBASE = \"http://example.com\"\n\ndef make_sign(params):\n    keys = sorted(params.keys())\n    s = \"&\".join(f\"{k}={params[k]}\" for k in keys) + \"&key=\" + SECRET\n    return hashlib.md5(s.encode()).hexdigest()\n\ndef call(path, params):\n    params[\"timestamp\"] = int(time.time())\n    params[\"sign\"] = make_sign({k: v for k, v in params.items() if k != \"sign\"})\n    r = requests.post(BASE + path, json=params)\n    print(r.status_code, r.text[:300])\n    return r\n\n# 现在可以随意改参数了，签名会自动算对\ncall(\"/api/user/info\", {\"userId\": 1})\ncall(\"/api/user/info\", {\"userId\": 2})   # 改 ID 测越权\n```\n\n**预期结果**：请求返回正常数据，说明签名算法完全复现。\n\n#### 第 7 步：常见加密类型速查\n| 类型 | JS 里的特征 | 能否解密 | 处理方式 |\n| --- | --- | --- | --- |\n| MD5/SHA | `md5(`、`sha256(`、`hexdigest` | 不可逆 | 只需**照抄计算** |\n| Base64 | `btoa(`、`atob(`、`Buffer.from(x,'base64')` | 可逆 | 直接解码看内容 |\n| AES（对称） | `CryptoJS.AES.encrypt`、`mode.CBC`、`padding` | 可逆（需密钥+IV） | 抄出 key 和 IV，本地解密 |\n| RSA（非对称） | `JSEncrypt`、`setPublicKey` | 私钥才能解 | 只需用公钥加密，能复现即可 |\n| 自定义 XOR | `^` 运算符、循环异或 | 可逆 | 抄出密钥字节，node/python 复现 |\n| HMAC | `HmacSHA256(`、`CryptoJS.Hmac` | 不可逆 | 照抄计算 |\n\n#### 第 8 步：抄 AES 密钥与 IV 的正确姿势\nAES 在 JS 里长这样：\n\n```javascript\nvar key = CryptoJS.enc.Utf8.parse(\"1234567890abcdef\");   // 16 字节 = AES-128\nvar iv  = CryptoJS.enc.Utf8.parse(\"abcdef1234567890\");\nvar enc = CryptoJS.AES.encrypt(plaintext, key, {\n    iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7\n});\n```\n\n本地复现（Python）：\n\n```python\nfrom Crypto.Cipher import AES\nfrom Crypto.Util.Padding import unpad\nimport base64\n\nkey = b\"1234567890abcdef\"\niv  = b\"abcdef1234567890\"\nct  = base64.b64decode(\"密文Base64字符串\")\npt  = unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(ct), 16)\nprint(pt.decode())\n```\n\n> [!warn]\n> 抄 AES 参数时四个东西一个都不能错：**密钥、IV、模式（CBC/ECB/GCM）、填充（Pkcs7/ZeroPadding）**。任何一个错都会解出乱码。ECB 模式不需要 IV；CBC 必须有 IV 且长度为 16 字节。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 本地结果和浏览器不一样 | 拼接顺序错 / 编码错 / 大小写 | 用断点抄下**中间每一步**的值逐步比对 |\n| 加密函数里 key 是动态的 | 密钥从接口下发 | 在获取密钥处打断点，先抓到密钥再算 |\n| Python 的 Crypto 装不上 | 包名是 `pycryptodome` 不是 `crypto` | `pip install pycryptodome` |\n| 解密出来前几个字节乱码 | IV 错了，或用了 ECB | 确认模式；ECB 时不要传 IV |\n| 时间戳校验失败 | 服务器和本地时间不同步 | 用服务器返回的时间戳，或校准本地时间 |\n\n#### 实战要点\n- **签名类题目 90% 是\"照抄算法\"，不是\"破解算法\"**——找到函数、抄参数、本地复现、验证通过，就结束了\n- **硬编码密钥是最常见的出题点**：搜 `key`、`secret`、`iv`、`salt` 往往一击必中\n- 遇到 RSA 先判断方向：**前端只用公钥加密**（能复现就行），还是要**解密后端返回**（需私钥，去找泄露）\n- 复现成功的标志是 **`assert` 通过**，不是\"看起来差不多\"\n- 时间戳/nonce 这类防重放参数：复现时**动态生成**，别把抓包时的旧值写死"
+        },
+        {
+          "id": "js-debug-dynamic",
+          "title": "第 8 课：动态调试与 Hook——读不懂就跑起来看",
+          "tags": [
+            "核心",
+            "动态调试"
+          ],
+          "aliases": [
+            "断点",
+            "hook",
+            "console",
+            "反调试"
+          ],
+          "difficulty": "medium",
+          "summary": "当静态分析陷入僵局，用断点、Hook 和 Console 改写在运行时直接观察和篡改程序行为。",
+          "content": "\n#### 这条要解决什么\n混淆、加密、控制流平坦化让静态阅读变成苦差事。但**代码无论多难读，运行时总要有明确的输入和输出**。动态调试就是绕过\"读懂\"这一步，直接观察\"做了什么\"。这条覆盖三件事：怎么下断点看关键值、怎么用 Hook 拦截函数、怎么对付常见反调试。\n\n#### 需要准备什么\n- 浏览器 F12（第 2 课已讲基础操作）\n- 目标页面可复现（能反复刷新、反复触发同一操作）\n\n#### 第 1 步：三类断点，按场景选\n| 场景 | 断点类型 | 下断点方法 |\n| --- | --- | --- |\n| 不知道按钮触发什么代码 | **Event Listener** | Sources → Event Listener Breakpoints → Mouse → click |\n| 想知道请求参数怎么来的 | **XHR/fetch** | Sources → XHR/fetch Breakpoints → 勾选 |\n| 知道函数名/变量名 | **行断点** | 搜到代码行，点行号 |\n| 想在 DOM 变化时暂停 | **DOM 变更断点** | Elements → 右键节点 → Break on → subtree modifications |\n| 想在异常时暂停 | **异常断点** | Sources → 右上角暂停图标 → Pause on exceptions |\n\n**推荐新手从 Event Listener 起步**：勾选 `click` 后，点页面上任何地方都会暂停，`Call Stack` 面板从下往上看就是完整调用链，一眼看出\"点击 → 哪个函数 → 做了什么\"。\n\n#### 第 2 步：看懂暂停时右侧三个面板\n```txt\nScope（作用域）—— ⭐ 最重要\n  Local     当前函数内的变量（你要找的值通常在这）\n  Closure   闭包变量（外层函数留下的变量）\n  Global    window 上的全局变量\n\nCall Stack（调用栈）—— 从下往上是调用顺序\n  越靠下越外层；点任意一帧可跳到对应代码\n\nWatch（监视）—— 添加表达式实时求值\n  点 + 输入变量名或表达式，如 obj.user.role\n```\n\n#### 第 3 步：Hook 函数——拦截任意调用的输入输出\nHook = 把原函数包一层，先打印参数、再调用原函数、再打印返回值。**这是逆向最实用的技巧**。\n\n在 Console 面板里贴：\n\n```javascript\n// 通用 Hook 模板\n(function hook(name) {\n  const orig = window[name];\n  if (typeof orig !== 'function') { console.log('❌ 不是函数:', name); return; }\n  window[name] = function(...args) {\n    console.log('%c[调用] ' + name, 'color:#0a0', '参数 =', args);\n    const result = orig.apply(this, args);\n    console.log('%c[返回] ' + name, 'color:#08f', '结果 =', result);\n    return result;\n  };\n  console.log('✅ 已 Hook:', name);\n})('checkPassword');\n```\n\n实用的 Hook 清单：\n\n```javascript\n// ① Hook eval —— 抓所有动态执行的代码（解混淆神器）\n(function(){\n  const orig = window.eval;\n  window.eval = function(code) {\n    console.log('%c[eval 执行的代码]', 'color:red;font-weight:bold');\n    console.log(code);\n    return orig.call(this, code);\n  };\n})();\n\n// ② Hook atob / btoa —— 抓 Base64 编解码的明文\n(function(){\n  const a = window.atob, b = window.btoa;\n  window.atob = function(s){ const r = a.call(this, s); console.log('[atob]', s, '->', r); return r; };\n  window.btoa = function(s){ const r = b.call(this, s); console.log('[btoa]', s, '->', r); return r; };\n})();\n\n// ③ Hook JSON.parse —— 看接口返回的原始结构\n(function(){\n  const orig = JSON.parse;\n  JSON.parse = function(...args) {\n    const r = orig.apply(this, args);\n    console.log('[JSON.parse]', r);\n    return r;\n  };\n})();\n\n// ④ Hook XMLHttpRequest —— 看所有请求与响应\n(function(){\n  const open = XMLHttpRequest.prototype.open;\n  const send = XMLHttpRequest.prototype.send;\n  XMLHttpRequest.prototype.open = function(m, u) { this.__u = u; this.__m = m; return open.apply(this, arguments); };\n  XMLHttpRequest.prototype.send = function(body) {\n    console.log('[请求]', this.__m, this.__u, '参数:', body);\n    this.addEventListener('load', () => console.log('[响应]', this.__u, this.responseText.slice(0, 500)));\n    return send.apply(this, arguments);\n  };\n})();\n\n// ⑤ Hook fetch —— 同上，但用于 fetch API\n(function(){\n  const orig = window.fetch;\n  window.fetch = async function(...args) {\n    console.log('[fetch]', args[0], args[1]);\n    const r = await orig.apply(this, args);\n    console.log('[fetch 响应]', r.status, r.clone().text());\n    return r;\n  };\n})();\n```\n\n> [!tip]\n> **Hook `eval` 是解开大部分混淆的捷径**：混淆代码最终都要 `eval` 一段明文，Hook 之后明文直接打在 Console 里，连解混淆工具都不用。\n\n#### 第 4 步：篡改运行时状态——让程序按你的意愿走\n```javascript\n// 场景：前端有个 isAdmin 变量挡着，直接改成 true\nisAdmin = true;\n\n// 场景：某个函数总是返回 false，让它永远返回 true\nwindow.checkPermission = () => true;\n\n// 场景：修改 DOM 让隐藏元素显示（前端隐藏 ≠ 后端保护）\ndocument.querySelector('#adminPanel').style.display = 'block';\ndocument.querySelector('#hiddenBtn').removeAttribute('disabled');\n\n// 场景：删除输入框的只读限制\ndocument.querySelectorAll('input[readonly]').forEach(i => i.removeAttribute('readonly'));\n```\n\n> [!danger]\n> **前端验证永远不是安全边界**。改前端只能让你看到界面，**真正的数据仍然由后端决定**。如果改完前端能看到数据，说明后端没做校验（真漏洞）；如果看不到，说明后端做了校验（前端绕过无意义）。**别把\"前端改出来了\"当成漏洞**，必须验证后端是否也放行。\n\n#### 第 5 步：对付常见反调试\n| 反调试手段 | 特征 | 绕过方法 |\n| --- | --- | --- |\n| `debugger` 死循环 | 一开 F12 就卡死、不断暂停 | Sources → `Deactivate breakpoints`（或 `Ctrl+F8`）禁用所有断点 |\n| 检测窗口尺寸 | `outerHeight - innerHeight > 160` 判开发者工具 | DevTools 拖出来成独立窗口，或改写检测函数 |\n| `console.log` 检测 | 重写 console 判断是否被调用 | `window.console = {log(){}, warn(){}, error(){}}` |\n| 检测 `toString` | 检查函数是否被 Hook 过 | Hook 时用 `Object.defineProperty` 伪装 `toString` |\n| 定时检测 | `setInterval` 检测调试状态 | Hook `setInterval` 让它不执行 |\n| 代码格式化检测 | 检查函数源码字符串 | 直接下断点跳过检测函数 |\n\n```javascript\n// 禁用 console 检测\nObject.defineProperty(window, 'console', { value: { log(){}, warn(){}, error(){}, info(){} } });\n```\n\n**最实用的一招**：Sources 面板右上角点 `Deactivate breakpoints`（`Ctrl+F8`）禁用所有断点，然后单步时手动用 `F10`/`F11`，遇到 `debugger` 直接跳过。\n\n#### 第 6 步：把动态观察结果落成结论\n动态调试必须产出可复用的结论，否则等于白看：\n\n```txt\n记录模板：\n函数：checkPassword(input)\n观察方式：Hook 打印\n输入 → 输出：\n  \"123\"     -> false\n  \"admin\"   -> false\n  \"s3cr3t\"  -> true      ⭐ 找到正确值\n  \"s3cr3t1\" -> false\n结论：密码硬编码为 \"s3cr3t\"（源码位置 app.js:1203）\n后续：直接用于登录，或查看后端是否二次校验\n```\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| Hook 函数没生效 | 函数定义在模块作用域里，不在 window 上 | 改用行断点；或在模块定义处断下，从 Scope 拿到引用再 Hook |\n| 刷新页面 Hook 就丢了 | 页面重载清空运行时改动 | 用 Sources → Snippets 保存脚本，刷新后手动跑一遍 |\n| 断点停不下来 | 代码已经执行过了 | 刷新页面重来，断点要在执行前下好 |\n| Console 里访问不到变量 | 变量在闭包/模块作用域 | 在断点暂停时访问（此时 Scope 里可见） |\n| `debugger` 卡到没法操作 | 反调试 | `Ctrl+F8` 禁用断点；或 DevTools 命令面板 `Disable JavaScript` |\n\n#### 实战要点\n- **Hook `eval` / `atob` / `JSON.parse` 三个就够了**，能覆盖大部分\"看不懂\"的场景\n- **Scope 面板比读代码靠谱**：变量实际是什么值，看就完了，不用推理\n- **Call Stack 是你的导航**：不知道代码从哪来的，顺着栈往下点，一层层就找到入口\n- 反调试优先用官方功能 `Ctrl+F8` 和 Sources 的 `Deactivate breakpoints`，比手写绕过代码又快又稳\n- **Snippets 保存常用 Hook 脚本**：Sources → Snippets → 新建 → 写好后右键 Run，刷新后一键重跑"
+        },
+        {
+          "id": "js-burp-passive",
+          "title": "第 9 课：Burp 被动抓包与接口清单",
+          "tags": [
+            "抓包",
+            "接口"
+          ],
+          "aliases": [
+            "Burp",
+            "代理",
+            "被动收集"
+          ],
+          "difficulty": "medium",
+          "summary": "让 Burp 在正常浏览过程中被动收录所有 JS 与 XHR，形成完整接口地图。",
+          "content": "\n#### 这条要解决什么\n手工复制粘贴接口太慢，而且会漏。Burp 挂上代理后，你正常操作网站，它把所有流量默默记下来，最后一次性导出成接口清单。这是**最完整**的接口收集方式——因为它记录的是\"真实发生过的请求\"，一个不漏。\n\n#### 需要准备什么\n- Burp Suite Community 版（免费够用）或 Pro\n- 浏览器代理插件（FoxyProxy）或系统代理设置\n- 目标环境的访问权限\n\n#### 第 1 步：配置代理\n```txt\n1. 启动 Burp → Proxy → Options → 确认监听 127.0.0.1:8080\n2. 浏览器装 FoxyProxy → 新建代理：类型 HTTP，Host 127.0.0.1，Port 8080\n3. 访问 http://burp → 下载 CA 证书 → 导入浏览器信任\n   （不装证书只能抓 HTTP，抓不到 HTTPS）\n4. 打开目标网站，确认 Burp 的 HTTP history 里开始出现记录\n```\n\n**如果不行**：浏览器打不开网页 → 检查代理是否只对特定域名生效（FoxyProxy 的模式设置）；HTTPS 报证书错误 → CA 证书没装好，重新导入。\n\n#### 第 2 步：正常浏览，把功能全点一遍\n流量是\"点\"出来的。按功能模块系统地过：\n\n```txt\n清单（每项都要做一遍）：\n□ 首页 / 各栏目页\n□ 注册流程（含验证码获取）\n□ 登录 / 退出\n□ 个人中心 / 资料修改 / 头像上传\n□ 搜索框（随便搜个词）\n□ 列表翻页 / 排序 / 筛选\n□ 详情页（点开具体条目）\n□ 提交类表单（留言、评论、工单）\n□ 导出 / 下载功能\n□ 后台入口尝试访问\n□ 所有可见的按钮都点一次\n```\n\n#### 第 3 步：过滤出接口清单\nBurp → `Target` → `Site map`，选中目标域名右键 → `Filter`。或在 `HTTP history` 里直接加过滤器：\n\n```txt\nFilter by request type:\n  ☑ Show only in-scope items\n  ☑ Show only parameterized requests    ← 有参数的才是接口\n  Show only: JSON / XML\nHide:\n  ☑ Hide js/css/image responses\n```\n\n**预期结果**：只剩接口请求，路径、方法、参数一览。\n\n#### 第 4 步：导出并二次加工\n```txt\n导出：HTTP history → 全选 → 右键 → Save items → 存成 XML\n或直接复制 URL：Target → Site map → 右键目标 → Copy URLs in this host\n```\n\n```bash\n# 从 Burp 导出的 XML 里抠出所有 URL\ngrep -oP 'url=\"\\K[^\"]+' burp-export.xml | sort -u > all-urls.txt\n\n# 只留 XHR / API 类\ngrep -iE '/(api|ajax|json|rest|graphql|v[0-9]+)/' all-urls.txt | sort -u > api-list.txt\n\n# 归并成模板\nsed -E 's#/[0-9]+#/{id}#g; s#\\?.*##' api-list.txt | sort -u > api-templates.txt\nwc -l api-templates.txt\n```\n\n#### 第 5 步：重点关注四类前缀\n```bash\ngrep -iE '/(admin|manage|internal|debug|test|dev|api/v[0-9])/' api-list.txt\n```\n\n| 前缀 | 为什么值得看 |\n| --- | --- |\n| `/admin/`、`/manage/` | 管理接口，普通用户界面调用了说明可能缺权限校验 |\n| `/internal/`、`/debug/` | 内部调试接口，常未授权 |\n| `/api/v1/` vs `/api/v2/` | **旧版本 API 常常漏洞还在**，两个版本都测 |\n| `/test/`、`/dev/` | 测试环境残留 |\n\n#### 第 6 步：对比\"静态清单\"和\"动态清单\"\n```bash\nsort -u out/templates.txt > static.txt     # 静态挖到的（第 5 课产出）\nsort -u api-templates.txt > dynamic.txt    # 动态抓到的\n\necho \"=== 只有静态有（后端已下架，历史接口）===\"\ncomm -23 static.txt dynamic.txt | head -30\necho \"=== 只有动态有（需登录/动态生成，静态漏了）===\"\ncomm -13 static.txt dynamic.txt | head -30\necho \"=== 两边都有（最可靠，优先测）===\"\ncomm -12 static.txt dynamic.txt | head -30\n```\n\n**预期结果**：三份差异清单。**\"只有静态有\"的经常是已下架但未删除的历史接口，是漏洞高发区**。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 抓不到 HTTPS | CA 证书未安装/未信任 | 重装 Burp CA 到系统信任区 |\n| 网站打不开但别的网站正常 | 目标有证书固定（pinning） | 部分场景无解，改用浏览器 F12 手抓 |\n| 流量里全是重复请求 | 页面有轮询 | 加过滤器或按 URL 去重 |\n| Burp 卡顿 | HTTP history 存了几万条 | 定期 `Clear`，或只保留 in-scope |\n| 导出 XML 太大处理慢 | 全量导出 | 只导出 in-scope，或分批导出 |\n\n#### 实战要点\n- **浏览的完整度决定清单的完整度**：功能没点到的接口，Burp 也抓不到\n- **登录前后各刷一遍**：登录后才有的接口（管理端、个人中心）权限更高\n- **Burp 的 `Repeater` 顺手用**：右键请求 → Send to Repeater，改参数重放，最快验证越权/注入\n- 被动阶段**只浏览不改包**；把改动集中到测试阶段，避免污染记录\n- 导出清单后**立刻去重归并**，否则几百条原始 URL 没法用"
+        },
+        {
+          "id": "js-antidebug-misc",
+          "title": "第 10 课：常见坑与排错手册",
+          "tags": [
+            "进阶",
+            "排错"
+          ],
+          "aliases": [
+            "反调试",
+            "坑",
+            "排错",
+            "FAQ"
+          ],
+          "difficulty": "medium",
+          "summary": "汇总新手在 JS 分析里最常卡住的十种情况与对应解法。",
+          "content": "\n#### 这条要解决什么\n前面每条都假设\"顺利跑通\"。实际比赛你会遇到各种见鬼的情况：代码一开 F12 就卡死、下载的 JS 是空壳、搜索关键词一个都不中、flag 明明在但读不出来。这条是**排错手册**，卡住了就来这里查。\n\n#### 坑 1：一打开 F12 页面就卡死 / 无限暂停\n**原因**：反调试——代码里写了 `debugger` 语句并循环执行。\n\n**解决**（按推荐顺序）：\n```txt\n① 最快：Sources 面板右上角点 \"Deactivate breakpoints\"（或 Ctrl+F8）\n   —— 禁用所有断点，debugger 语句就失效了\n② 彻底：Chrome 设置 → 隐私和安全 → 网站设置 → JavaScript → 把目标站点加入\"不允许\"\n   —— 但这样 JS 也不跑了，只适合纯静态看代码\n③ 治本：在 Sources → Overrides 里把反调试代码注释掉，本地覆盖生效\n④ 兜底：用无痕窗口不打开 DevTools，先把 JS 全部 curl 下载下来离线分析\n```\n\n#### 坑 2：下载的 JS 是 HTML\n```bash\ncurl -s http://example.com/static/js/app.js | head -c 100\n\n# 带上完整请求头（从浏览器 Copy as cURL 拿）\ncurl -s 'http://example.com/static/js/app.js' \\\n  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \\\n  -H 'Referer: http://example.com/' \\\n  -H 'Cookie: session=xxxxx' \\\n  -o app.js\n```\n\n#### 坑 3：搜关键词一个都不中\n**排查顺序**：\n```bash\n# ① 大小写和变体\ngrep -rniE 'flag|FLAG|Flag|f1a9|ctf|CTF' .\n\n# ② 被转义了（\\x66\\x6c\\x61\\x67 就是 flag）\nnode -e \"\nconst fs=require('fs');\nfor (const f of fs.readdirSync('.').filter(x=>x.endsWith('.js'))) {\n  let s=fs.readFileSync(f,'utf8');\n  s=s.replace(/\\\\\\\\x([0-9a-fA-F]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));\n  s=s.replace(/\\\\\\\\u([0-9a-fA-F]{4})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));\n  fs.writeFileSync(f+'.decoded',s);\n}\"\ngrep -rniE 'flag|ctf' *.decoded\n\n# ③ 被 Base64 编码了\ngrep -rnoE '[A-Za-z0-9+/]{24,}={0,2}' . | head -20\nnode -e \"console.log(Buffer.from('粘贴字符串','base64').toString())\"\n\n# ④ 在 source map 里（JS 看不到但 map 里有）\ncurl -s http://example.com/static/js/app.js.map | grep -io 'flag[^\"]*'\n\n# ⑤ 在接口返回里，不在 JS 里（换个方向，去看 Network）\n\n# ⑥ 需要触发某个分支才写入 DOM\ngrep -rniE 'innerHTML|textContent|document.write' . | grep -i flag\n```\n\n#### 坑 4：代码是加密的，改了参数服务器不认\n**解决**：回第 7 课——找签名函数 → 断点抄输入输出 → 本地复现 → `assert` 验证通过 → 批量构造请求。\n\n#### 坑 5：变量名全是 `_0x4f2a`，完全读不懂\n```bash\nnpx webcrack target.js -o ./out --unpack --deobfuscate\nnpx deobfuscator target.js -o clean.js\n# 工具不行就 Hook eval（最有效，见第 8 课）\n```\n\n#### 坑 6：JS 只有几行，看起来什么都没做\n**原因**：这是**入口文件**，真正的代码在它动态加载的 chunk 里。\n```bash\n# 从入口文件里抠出 chunk 文件名映射\ncurl -s http://example.com/static/js/app.js | grep -oE '\"[a-z-]+\":\"[a-f0-9]{8}\"' | head -30\n# 或在 F12 → Network 里过滤 .js，刷新页面，看实际加载了哪些\n```\n\n#### 坑 7：前端逻辑对了，但请求还是失败\n```txt\n□ Cookie / Token 带了没\n□ Content-Type 对不对（application/json vs form-urlencoded）\n□ 参数放在 body 还是 query 里\n□ 有没有 CSRF token（从页面里抓，会过期）\n□ 有没有 Referer 校验\n□ 有没有时间戳有效期（用当前时间）\n□ 是不是 HTTPS 但用了 HTTP（或被强制跳转）\n□ 有没有被 WAF 拦（看返回是不是 403 + 拦截页面）\n```\n最快的办法：**F12 → Network → 右键失败请求 → Copy as cURL**，逐字复制到终端跑，和你手拼的一定有差异，对比就找到问题了。\n\n#### 坑 8：`console.log` 被重写了，打印不出东西\n```javascript\nconst iframe = document.createElement('iframe');\niframe.style.display = 'none';\ndocument.body.appendChild(iframe);\nwindow.console = iframe.contentWindow.console;\nconsole.log('测试', 123);   // 恢复了\n```\n\n#### 坑 9：改完前端页面刷新就丢失\n```txt\n① 用 Sources → Snippets 保存 Hook 脚本，刷新后 Run 一次\n② 用 Sources → Overrides 本地覆盖 JS 文件（持久生效）\n③ 断点调试时不要刷新，用单步和 Console 改值\n```\n\n#### 坑 10：不知道从哪下手\n**固定排查顺序，照着走**：\n```txt\n1. F12 → Network → 刷新 → 看加载了哪些 JS           （5 秒）\n2. 挑最大的那个 JS → Sources 点 {} 美化              （10 秒）\n3. Ctrl+Shift+F 搜 flag / ctf / admin / password    （20 秒）\n4. 搜不到 → 探 source map                           （30 秒）\n5. 还没有 → 把所有 JS 下载到本地，跑静态扫描脚本      （2 分钟）\n6. 还没有 → Hook eval / atob / JSON.parse 看动态     （3 分钟）\n7. 还没有 → 换方向：看接口返回、看 Cookie、看隐藏路由\n```\n\n#### 实战要点\n- **遇到卡壳先做这个判断**：我是\"没找到代码\"还是\"找到了读不懂\"？前者去收集（Network / 下载 / source map），后者去动态调试（断点 / Hook）\n- **别在单个文件上死磕超过 10 分钟**，换个文件、换个方向往往更快\n- **所有下载的 JS 都留着**，后面复盘和写报告都需要引用具体文件行号\n- **记录每一步的现象**，写报告时这就是完整的方法论证据链"
+        },
+        {
+          "id": "js-walkthrough",
+          "title": "第 11 课：完整示范——从零到 flag 走一遍",
+          "tags": [
+            "实战",
+            "示范"
+          ],
+          "aliases": [
+            "全流程",
+            "walkthrough",
+            "案例"
+          ],
+          "difficulty": "easy",
+          "summary": "用一道典型题目把前 10 课串起来，展示每一步的决策与产出。",
+          "content": "\n#### 这道题长什么样\n一个登录页，随便输密码都提示错误，页面上没有注册入口，没有任何明显提示。\n\n#### 第 1 步：看页面加载了什么（第 1、2 课）\n```txt\nF12 → Network → 刷新 → 过滤 .js\n观察到：/static/js/login.js\n```\n**决策**：只有一个业务 JS，先把它拿下来。\n\n#### 第 2 步：下载并搜索（第 1、3 课）\n```bash\ncurl -s http://target/static/js/login.js -o login.js\ngrep -rniE 'flag|password|admin|check' login.js\n# 输出：login.js:14: var _0x1a2b = \"...\"\n```\n**决策**：代码是混淆的，不硬读。**先走最省力的路**——探 source map。\n\n#### 第 3 步：探 source map（第 4 课）\n```bash\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://target/static/js/login.js.map\n# 输出：200   ← 命中！\n```\n**决策**：map 存在，直接还原源码，不用解混淆。\n\n```bash\ncurl -s http://target/static/js/login.js.map -o login.js.map\nnode -e \"\nconst m=require('./login.js.map');\nconsole.log('文件:', m.sources);\nconsole.log(m.sourcesContent && m.sourcesContent[0]);\n\" | head -60\n```\n\n#### 第 4 步：读还原出的源码\n源码里直接看到验证逻辑：\n\n```javascript\nfunction check(pwd) {\n  if (pwd === 'S3cr3t_P@ss') { location.href = '/flag.php'; }\n}\n```\n\n**决策**：拿到密码 `S3cr3t_P@ss`，并且知道登录成功会跳到 `/flag.php`。两条路都可以试。\n\n#### 第 5 步：验证\n```bash\ncurl -s http://target/flag.php\n# 或者到页面输入密码登录\n```\n\n#### 复盘：这道题教了什么\n```txt\n✅ 固定顺序的价值：Network 看加载 → 美化 → 搜关键词 → 探 map\n✅ source map 优先：30 秒探一次，省掉可能 1 小时的解混淆\n✅ 不会解混淆也能做题：只要 map 在，混淆就等于不存在\n✅ 两步验证：密码直接给 /flag.php，两条路都走一遍更稳\n```\n\n> [!tip]\n> 核心原则：**每一步都先试最省力的方案**。source map → 直接读源码 → 5 分钟解决；如果一开始就去解混淆，可能要 1 小时。**顺序比技巧重要**。"
+        },
+        {
+          "id": "js-cheatsheet",
+          "title": "第 12 课：一页速查表——打题时贴屏幕边上",
+          "tags": [
+            "速查",
+            "cheatsheet"
+          ],
+          "aliases": [
+            "速查",
+            "命令",
+            "清单"
+          ],
+          "difficulty": "easy",
+          "summary": "把整组知识压缩成一张速查表，做题时不用来回翻条目。",
+          "content": "\n#### 一、提取 JS\n```bash\n# 从页面提取 JS 列表\ncurl -s http://TARGET | grep -oP 'src=\"\\K[^\"]+\\.js' | sort -u\n\n# 批量下载（保留目录结构）\nwhile read -r u; do\n  case \"$u\" in http*) url=\"$u\"; f=\"${u#*://*/}\" ;; *) url=\"http://TARGET$u\"; f=\"${u#/}\" ;; esac\n  mkdir -p \"$(dirname \"$f\")\" 2>/dev/null\n  curl -s \"$url\" -o \"$f\"\ndone < js-list.txt\n```\n\n#### 二、静态搜索\n```bash\ngrep -rhoE '\"/[a-zA-Z0-9_./?=&-]{3,}\"' . | tr -d '\"' | sort -u > paths.txt\ngrep -rniE 'api[_-]?key|secret|token|password|access[_-]?key' .\ngrep -rnoE 'AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36,}' .\ngrep -rnoE 'eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+' .     # JWT\ngrep -rnoE \"path:\\s*['\\\"][^'\\\"]+['\\\"]\" .                                 # 路由表\ngrep -rniE 'flag|ctf|admin|internal|debug|hidden' .\n```\n\n#### 三、Source Map\n```bash\ncurl -s http://TARGET/app.js | grep -i sourceMappingURL          # 探测\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://TARGET/app.js.map # 验证\nnpx unwebpack-sourcemap -o recovered ./app.js.map                 # 一键还原\n```\n\n#### 四、解混淆\n```bash\nnpx js-beautify target.js -o target.beauty.js                     # 压缩\nnpx webcrack target.js -o ./out --unpack --deobfuscate            # 混淆通吃\nnpx synchrony target.js -o clean.js                               # obfuscator.io\nnpx deobfuscator target.js -o clean.js                            # 通用\n```\n\n#### 五、DevTools 快捷键\n```txt\nF12              打开开发者工具\nCtrl+Shift+F     全局搜索所有已加载资源        ⭐ 最高频\nCtrl+F8          禁用/启用所有断点（破 debugger 死循环）\nF8               继续执行\nF10              单步跳过\nF11              单步进入\nShift+F11        跳出当前函数\nCtrl+Shift+P     命令面板（可搜 Disable JavaScript）\n{} 按钮          美化压缩代码（编辑器左下角）\n```\n\n#### 六、Hook 速贴（Console 直接贴）\n```javascript\n// eval —— 解混淆神器\n(function(){const o=window.eval;window.eval=function(c){console.log('[eval]',c);return o.call(this,c)};})();\n// atob/btoa —— 抓 Base64 明文\n(function(){const a=window.atob,b=window.btoa;window.atob=function(s){const r=a.call(this,s);console.log('[atob]',s,'->',r);return r};window.btoa=function(s){const r=b.call(this,s);console.log('[btoa]',s,'->',r);return r};})();\n// JSON.parse —— 看接口返回结构\n(function(){const o=JSON.parse;JSON.parse=function(...a){const r=o.apply(this,a);console.log('[JSON.parse]',r);return r};})();\n// XHR —— 看所有请求响应\n(function(){const o=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__u=u;this.__m=m;return o.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){console.log('[req]',this.__m,this.__u,b);this.addEventListener('load',()=>console.log('[res]',this.__u,this.responseText.slice(0,500)));return s.apply(this,arguments)};})();\n```\n\n#### 七、破解谜题的固定顺序\n```txt\n1. F12 → Network → 刷新 → 看加载了哪些 JS           （5 秒）\n2. 挑最大那个 → Sources 点 {} 美化                   （10 秒）\n3. Ctrl+Shift+F 搜 flag / ctf / admin / password    （20 秒）\n4. 搜不到 → 探 source map                           （30 秒）\n5. 还没有 → 下载全部 JS 跑静态扫描                   （2 分钟）\n6. 还没有 → Hook eval / atob / JSON.parse 看动态     （3 分钟）\n7. 还没有 → 换方向：接口返回 / Cookie / 隐藏路由\n```\n\n#### 八、十秒判断表\n| 你的情况 | 去哪条 |\n| --- | --- |\n| 不知道 JS 在哪 | 第 1 课 js-url-basics |\n| 不会用 F12 | 第 2 课 js-via-devtools |\n| 想批量捞接口密钥 | 第 3 课 js-static-scan |\n| 看到 sourceMappingURL | 第 4 课 js-sourcemap-restore |\n| 拿到一堆路径不会整理 | 第 5 课 js-api-extract |\n| 代码看不懂 | 第 6 课 js-beautify-deobf |\n| 有 sign/加密参数 | 第 7 课 js-crypto-reverse |\n| 断点调试/hook | 第 8 课 js-debug-dynamic |\n| 要完整接口地图 | 第 9 课 js-burp-api |\n| 卡住了 | 第 10 课 js-antidebug-misc |\n| 想看完整案例 | 第 11 课 js-walkthrough |\n\n#### 九、三条铁律\n```txt\n① 顺序比技巧重要：永远先试最省力的方案（Network → 搜 → map → 扫描 → 动态）\n② 动态比静态快：读不懂就下断点、就 Hook，别硬啃\n③ 前端不是边界：改前端看到的不算漏洞，必须验证后端是否放行\n```"
+        }
+      ]
+    }
+  ]
+}

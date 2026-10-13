@@ -1,0 +1,13 @@
+# 构建/规划中间产物（本地用，不入库）
+data/_plan.json
+data/_plan.txt
+data/_plan-txt.mjs
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+node_modules/
+*.log
